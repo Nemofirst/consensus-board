@@ -56,6 +56,12 @@ h1 .shine{background:linear-gradient(100deg,var(--acc) 20%,#bffcf1 40%,var(--acc
 .stat b{display:block;font-size:clamp(20px,2.4vw,28px);font-weight:600;letter-spacing:-.02em}
 .stat span{font-size:11px;color:var(--txt3);letter-spacing:.08em;text-transform:uppercase}
 @media(max-width:860px){.hero-in{grid-template-columns:1fr;gap:32px}.hero-stats{max-width:440px}}
+.why{border-bottom:1px solid var(--line);background:var(--bg2)}
+.why-in{max-width:1160px;margin:0 auto;padding:34px clamp(16px,4vw,40px);display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(20px,3vw,48px)}
+.why-item h3{font-size:14px;letter-spacing:-.01em;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.why-item h3::before{content:"";width:6px;height:6px;border-radius:99px;background:var(--acc);box-shadow:0 0 8px var(--acc);flex:none}
+.why-item p{font-size:13px;color:var(--txt2);line-height:1.6}
+@media(max-width:860px){.why-in{grid-template-columns:1fr;gap:20px}}
 main{max-width:1160px;margin:0 auto;padding:0 clamp(16px,4vw,40px) 120px}
 .board-head{display:flex;align-items:center;gap:16px;padding:36px 0 20px;flex-wrap:wrap}
 .board-head h2{font-size:20px;letter-spacing:-.01em}
@@ -184,6 +190,23 @@ footer{border-top:1px solid var(--line);padding:28px clamp(16px,4vw,40px);displa
   </div>
 </section>
 
+<section class="why">
+  <div class="why-in">
+    <div class="why-item">
+      <h3>No algorithm. Ever.</h3>
+      <p>One global feed, ranked by the community. What rises is decided by likes and XRP tips — and the exact formula is printed right on the board. No engagement farming, no shadow ranking, no feed tuned to enrage you.</p>
+    </div>
+    <div class="why-item">
+      <h3>Your words earn real money</h3>
+      <p>Readers tip posts in XRP and 100% goes to the author — wallet to wallet, settled on the XRP Ledger in about four seconds. No platform cut, no minimum payout, no withdrawal step. Write something great, get paid before you refresh.</p>
+    </div>
+    <div class="why-item">
+      <h3>Bots are priced out</h3>
+      <p>Publishing costs 0.1 XRP and every XRPL account carries a real reserve, so spam that's free everywhere else costs money here. One like per account, likes from real wallets — the board stays human.</p>
+    </div>
+  </div>
+</section>
+
 <main>
   <div class="board-head">
     <h2>The Board</h2>
@@ -213,9 +236,10 @@ footer{border-top:1px solid var(--line);padding:28px clamp(16px,4vw,40px);displa
       <div class="card" id="howCard">
         <h3>How it works</h3>
         <ul class="how">
-          <li><span class="n">01</span><span>Sign in with your Xaman wallet — your XRPL account is your identity. The 1 XRP account reserve keeps bot armies expensive.</span></li>
-          <li><span class="n">02</span><span>Like once per account. Tip in XRP to push a post harder — tips go straight to the author's wallet, never through us.</span></li>
-          <li><span class="n">03</span><span>Ranking is public math, not a black box. Scores decay with age so the board stays alive.</span></li>
+          <li><span class="n">01</span><span>Scan once with Xaman and you're in. No email, no password, no signup form — your wallet is your identity.</span></li>
+          <li><span class="n">02</span><span>Post to the one feed everyone sees. Likes are one per account; tips count 3× in ranking because money is a harder signal to fake than a click.</span></li>
+          <li><span class="n">03</span><span>Get tipped, get paid instantly. Tips settle straight to your wallet on the XRP Ledger — we never touch them, and we never take a cut.</span></li>
+          <li><span class="n">04</span><span>Want reach? Bid for a promoted slot. Highest bid sits on top for 24 hours — clearly labeled, and never mixed into the organic ranking.</span></li>
         </ul>
       </div>
 
