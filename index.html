@@ -82,6 +82,11 @@ main{max-width:1160px;margin:0 auto;padding:0 clamp(16px,4vw,40px) 120px}
 .badge{font-size:10px;padding:2px 8px;border-radius:99px;border:1px solid var(--line2);color:var(--txt3);letter-spacing:.05em}
 .badge.verified{border-color:var(--acc-line);color:var(--acc)}
 .subsc{font-size:10.5px;color:var(--txt3)}
+.fee{font-size:11px;color:var(--txt3)}
+.fee b{color:var(--gold);font-family:'JetBrains Mono',monospace;font-weight:500}
+.badge.gold{border-color:rgba(240,198,116,.45);color:var(--gold)}
+.post.promo{border-color:rgba(240,198,116,.4)}
+.post.promo .rank b{color:var(--gold)}
 .sub-btn{font:inherit;font-size:10.5px;font-weight:600;color:var(--txt2);background:none;border:1px solid var(--line2);border-radius:99px;padding:3px 10px;cursor:pointer;transition:all .15s}
 .sub-btn:hover{border-color:var(--acc-line);color:var(--acc)}
 .sub-btn.on{background:var(--acc-dim);border-color:var(--acc-line);color:var(--acc)}
@@ -200,6 +205,7 @@ footer{border-top:1px solid var(--line);padding:28px clamp(16px,4vw,40px);displa
         <label class="priv"><input type="checkbox" id="hideTipsChk"><span>Hide tip totals on this post</span><em>amounts stay visible on-ledger</em></label>
         <div class="compose-foot">
           <span class="charc"><span id="cc">0</span>/420</span>
+          <span class="fee">fee <b>0.1 XRP</b></span>
           <button class="btn btn-acc" id="postBtn" style="margin-left:auto">Sign &amp; post</button>
         </div>
       </div>
@@ -261,6 +267,16 @@ footer{border-top:1px solid var(--line);padding:28px clamp(16px,4vw,40px);displa
   </div>
 </div>
 
+<!-- pay modal (posting fee / promotion) -->
+<div class="overlay" id="payModal">
+  <div class="sheet">
+    <button class="close-x" data-close>&times;</button>
+    <h4 id="payTitle"></h4>
+    <p class="sub" id="paySub"></p>
+    <div class="qrbox" id="payQr"></div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -295,21 +311,25 @@ function render(){
   let posts=[...S.posts];
   if(tab==='subs')posts=posts.filter(p=>p.subscribed||p.addr===S.me);
   posts.sort(tab==='all'?(a,b)=>(b.likes+3*b.tips)-(a.likes+3*a.tips):(a,b)=>score(b)-score(a));
+  if(tab==='today')posts.sort((a,b)=>(b.promoted?1:0)-(a.promoted?1:0));
   const feed=$('#feed');feed.innerHTML='';
   if(!posts.length){
     feed.innerHTML=`<div class="empty">${tab==='subs'?'Nothing here yet. Subscribe to accounts on the board and their posts become your personal feed.':'The board is empty. Connect your wallet and write the first post — someone has to start the conversation.'}</div>`;
     stats();return;
   }
-  posts.forEach((p,i)=>{
-    const r=i+1,prev=prevRanks[p.id];
+  let rk=0;
+  posts.forEach((p)=>{
+    const isPromo=!!p.promoted&&tab==='today';
+    if(!isPromo)rk++;
+    const r=rk,prev=isPromo?null:prevRanks[p.id];
     let delta='<span class="delta fl">&mdash;</span>';
     if(prev&&prev<r)delta='<span class="delta dn">▼'+(r-prev)+'</span>';
     else if(prev&&prev>r)delta='<span class="delta up">▲'+(prev-r)+'</span>';
     const own=S.me&&p.addr===S.me;
     const el=document.createElement('article');
-    el.className='post'+(booted?'':' reveal')+(r===1?' top1':'');
+    el.className='post'+(booted?'':' reveal')+(!isPromo&&r===1?' top1':'')+(isPromo?' promo':'');
     el.innerHTML=`
-      <div class="rank"><b>${String(r).padStart(2,'0')}</b>${delta}</div>
+      <div class="rank"><b>${isPromo?'★':String(r).padStart(2,'0')}</b>${isPromo?'':delta}</div>
       <div class="post-body">
         <div class="post-meta">
           <span class="avatar" style="background:hsl(${hue(p.addr)} 65% 62%)">${esc(p.addr.slice(1,3).toUpperCase())}</span>
@@ -317,7 +337,7 @@ function render(){
           <span class="subsc mono">${fmt(p.followers)} subs</span>
           ${own?'':`<button class="sub-btn ${p.subscribed?'on':''}" data-sub="${esc(p.addr)}">${p.subscribed?'Subscribed':'Subscribe'}</button>`}
           <span>${ago(p.ts)} ago</span>
-          ${r===1?'<span class="badge verified">top of the board</span>':''}
+          ${isPromo?'<span class="badge gold" title="Paid placement — does not affect organic ranking">promoted</span>':(r===1?'<span class="badge verified">top of the board</span>':'')}
         </div>
         <p class="post-text">${esc(p.text)}</p>
         <div class="post-foot">
@@ -325,11 +345,12 @@ function render(){
           <button class="act" data-tip="${p.id}">${tipSVG}Tip</button>
           ${p.tips?(p.hideTips?'<span class="badge" title="Author hides tip totals here. Amounts remain public on-ledger.">tips private</span>':`<span class="tipped">${fmt(p.tips)} XRP tipped</span>`):''}
           ${own?`<button class="act" data-priv="${p.id}" title="Amounts remain public on-ledger">${p.hideTips?'Show tips':'Hide tips'}</button>`:''}
+          ${own&&!p.promoted?`<button class="act" data-promo="${p.id}" title="25 XRP for a labeled 24h promoted slot">Promote</button>`:''}
           <span class="score">score <b>${score(p).toFixed(1)}</b></span>
         </div>
       </div>`;
     feed.appendChild(el);
-    prevRanks[p.id]=r;
+    if(!isPromo)prevRanks[p.id]=r;
   });
   observeReveals();stats();booted=true;
 }
@@ -376,6 +397,13 @@ document.addEventListener('click',async e=>{
     if(r.ok){S.posts.find(p=>p.id===priv.dataset.priv).hideTips=r.hideTips;render();toast(r.hideTips?'Tip totals hidden on the board · still public on-ledger':'Tip totals visible')}
     return;
   }
+  const promo=e.target.closest('[data-promo]');
+  if(promo){
+    const r=await api('promote',{postId:promo.dataset.promo});
+    if(r.error)return toast(r.error);
+    if(r.uuid)payFlow(r,'Promote this post','25 XRP buys a clearly labeled promoted slot for 24 hours. Promotion never changes organic ranking or scores.','promote',async()=>{await load();toast('Post promoted for 24h');burst()});
+    return;
+  }
   const tip=e.target.closest('[data-tip]');
   if(tip){
     if(!S.me)return openConnect();
@@ -398,14 +426,33 @@ $('#postBtn').onclick=async()=>{
   const r=await api('post',{text:t,hideTips:$('#hideTipsChk').checked});
   btn.disabled=false;btn.textContent='Sign & post';
   if(r.error)return toast(r.error);
-  $('#composer').value='';$('#cc').textContent='0';$('#hideTipsChk').checked=false;
-  prevRanks={};await load();toast('Posted to the board');
+  const done=async()=>{
+    $('#composer').value='';$('#cc').textContent='0';$('#hideTipsChk').checked=false;
+    prevRanks={};await load();toast('Posted to the board');
+  };
+  if(r.uuid)return payFlow(r,'Publish your post','A 0.1 XRP anti-spam fee publishes your post to the board. It goes to keeping One Board running.','post',done);
+  await done();
 };
 $('#ctaPost').onclick=()=>{$('#composer').focus();$('#composerCard').scrollIntoView({behavior:reduced?'auto':'smooth',block:'center'})};
 $('#ctaHow').onclick=()=>$('#howCard').scrollIntoView({behavior:reduced?'auto':'smooth',block:'center'});
 
 /* ---------------- sign-in ---------------- */
 function stopPoll(){clearInterval(pollTimer);pollTimer=null}
+function payFlow(r,title,sub,pollPath,onDone){
+  $('#payTitle').textContent=title;$('#paySub').textContent=sub;
+  const box=$('#payQr');
+  box.innerHTML=`<img src="${esc(r.qr)}" alt="Xaman payment QR"><div class="status">Scan with Xaman, or</div>
+    <a class="btn btn-acc" style="display:inline-block;margin-top:10px;text-decoration:none" href="${esc(r.deeplink)}" target="_blank" rel="noopener">Open in Xaman</a>
+    <div class="status" id="payStatus">Waiting for your signature…</div>`;
+  $('#payModal').classList.add('open');
+  stopPoll();
+  pollTimer=setInterval(async()=>{
+    const st=await api(pollPath+'?uuid='+r.uuid);
+    if(st.posted||st.promoted){stopPoll();$('#payModal').classList.remove('open');await onDone()}
+    else if(st.expired){stopPoll();$('#payStatus').textContent='Request expired — close and try again.'}
+    else if(st.failed){stopPoll();$('#payStatus').textContent='Payment failed: '+esc(st.result||'unknown')}
+  },2500);
+}
 async function openConnect(){
   $('#connectModal').classList.add('open');
   const box=$('#signinQr');box.innerHTML='<span class="status">Creating sign-in request…</span>';
