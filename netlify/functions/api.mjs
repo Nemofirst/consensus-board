@@ -72,6 +72,7 @@ export default async (req) => {
           likes: p.likes.length, liked: !!(me && p.likes.includes(me)),
           tips: p.tips, followers: (followers[p.addr] || []).length,
           subscribed: mySubs.includes(p.addr),
+          promoted: (p.promotedUntil || 0) > Date.now(),
         })),
       });
     }
@@ -98,7 +99,7 @@ export default async (req) => {
     }
     if (req.method === "POST" && path === "logout") return j({ ok: true }, 200, clearSess);
 
-    /* ---------- post ---------- */
+    /* ---------- post (0.1 XRP anti-spam fee to the treasury when monetization is on) ---------- */
     if (req.method === "POST" && path === "post") {
       if (!me) return j({ error: "sign in first" }, 401);
       const { text, hideTips } = await req.json();
@@ -107,9 +108,70 @@ export default async (req) => {
       const posts = await getPosts();
       const last = posts.filter((p) => p.addr === me).sort((a, b) => b.ts - a.ts)[0];
       if (last && Date.now() - last.ts < 60e3) return j({ error: "one post per minute" }, 429);
-      posts.push({ id: crypto.randomUUID(), addr: me, text: t, ts: Date.now(), likes: [], tips: 0, hideTips: !!hideTips });
-      await setPosts(posts);
-      return j({ ok: true });
+      const treasury = process.env.PLATFORM_WALLET;
+      if (!hasXumm() || !treasury) {
+        posts.push({ id: crypto.randomUUID(), addr: me, text: t, ts: Date.now(), likes: [], tips: 0, hideTips: !!hideTips });
+        await setPosts(posts);
+        return j({ ok: true });
+      }
+      const pay = await xumm("payload", "POST", {
+        txjson: { TransactionType: "Payment", Destination: treasury, Amount: "100000" },
+        options: { expire: 5, submit: true },
+        custom_meta: { instruction: "Publish to One Board — 0.1 XRP anti-spam fee" },
+      });
+      await store().setJSON(`pendingpost/${pay.uuid}`, { text: t, hideTips: !!hideTips, by: me });
+      return j({ uuid: pay.uuid, qr: pay.refs.qr_png, deeplink: pay.next.always });
+    }
+    if (req.method === "GET" && path === "post") {
+      const uuid = url.searchParams.get("uuid");
+      const pending = await store().get(`pendingpost/${uuid}`, { type: "json" });
+      if (!pending) return j({ error: "unknown post" }, 404);
+      const p = await xumm(`payload/${uuid}`);
+      if (p.meta.expired) return j({ expired: true });
+      if (!p.meta.signed) return j({ pending: true });
+      if (p.response.dispatched_result !== "tesSUCCESS") return j({ failed: true, result: p.response.dispatched_result });
+      if (!(await store().get(`postdone/${uuid}`))) {
+        const posts = await getPosts();
+        posts.push({ id: crypto.randomUUID(), addr: pending.by, text: pending.text, ts: Date.now(), likes: [], tips: 0, hideTips: !!pending.hideTips });
+        await setPosts(posts);
+        await store().set(`postdone/${uuid}`, "1");
+      }
+      return j({ posted: true });
+    }
+
+    /* ---------- promote (25 XRP to the treasury -> 24h labeled promoted slot) ---------- */
+    if (req.method === "POST" && path === "promote") {
+      if (!me) return j({ error: "sign in first" }, 401);
+      const treasury = process.env.PLATFORM_WALLET;
+      if (!hasXumm() || !treasury) return j({ error: "promotion not enabled" }, 400);
+      const { postId } = await req.json();
+      const posts = await getPosts();
+      const p = posts.find((x) => x.id === postId);
+      if (!p) return j({ error: "not found" }, 404);
+      if (p.addr !== me) return j({ error: "you can only promote your own posts" }, 403);
+      const pay = await xumm("payload", "POST", {
+        txjson: { TransactionType: "Payment", Destination: treasury, Amount: "25000000" },
+        options: { expire: 5, submit: true },
+        custom_meta: { instruction: "Promote on One Board — 25 XRP for a 24h promoted slot" },
+      });
+      await store().setJSON(`pendingpromo/${pay.uuid}`, { postId, by: me });
+      return j({ uuid: pay.uuid, qr: pay.refs.qr_png, deeplink: pay.next.always });
+    }
+    if (req.method === "GET" && path === "promote") {
+      const uuid = url.searchParams.get("uuid");
+      const pending = await store().get(`pendingpromo/${uuid}`, { type: "json" });
+      if (!pending) return j({ error: "unknown promotion" }, 404);
+      const p = await xumm(`payload/${uuid}`);
+      if (p.meta.expired) return j({ expired: true });
+      if (!p.meta.signed) return j({ pending: true });
+      if (p.response.dispatched_result !== "tesSUCCESS") return j({ failed: true, result: p.response.dispatched_result });
+      if (!(await store().get(`promodone/${uuid}`))) {
+        const posts = await getPosts();
+        const post = posts.find((x) => x.id === pending.postId);
+        if (post) { post.promotedUntil = Date.now() + 24 * 3600e3; await setPosts(posts); }
+        await store().set(`promodone/${uuid}`, "1");
+      }
+      return j({ promoted: true });
     }
 
     /* ---------- like (toggle, one per account) ---------- */
