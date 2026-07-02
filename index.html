@@ -8,6 +8,7 @@
 <meta property="og:title" content="One Board — the crypto community board on XRPL">
 <meta property="og:description" content="One global feed. Likes and XRP tips decide what rises. No algorithm.">
 <meta property="og:image" content="/hero.webp">
+<script>try{if(localStorage.getItem('ob_app')==='1')document.documentElement.classList.add('app-mode')}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -63,6 +64,8 @@ h1 .shine{background:linear-gradient(100deg,var(--acc) 20%,#bffcf1 40%,var(--acc
 .why-item p{font-size:13px;color:var(--txt2);line-height:1.6}
 @media(max-width:860px){.why-in{grid-template-columns:1fr;gap:20px}}
 main{max-width:1160px;margin:0 auto;padding:0 clamp(16px,4vw,40px) 120px}
+.app-mode .hero,.app-mode .why{display:none}
+.app-mode .board-head{padding-top:22px}
 .board-head{display:flex;align-items:center;gap:16px;padding:36px 0 20px;flex-wrap:wrap}
 .board-head h2{font-size:20px;letter-spacing:-.01em}
 .tabs{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:3px;margin-left:auto}
@@ -342,7 +345,12 @@ async function load(){
   $('#demoBand').style.display=S.demo?'':'none';
   renderAuth();render();
 }
+function setAppMode(on){
+  document.documentElement.classList.toggle('app-mode',!!on);
+  try{on?localStorage.setItem('ob_app','1'):localStorage.removeItem('ob_app')}catch(e){}
+}
 function renderAuth(){
+  setAppMode(!!S.me);
   $('#authSlot').innerHTML=S.me
     ?`<span class="wallet-chip mono" id="walletChip" title="Click to sign out">${short(S.me)}<span style="width:6px;height:6px;border-radius:99px;background:var(--acc)"></span></span>`
     :'<button class="btn btn-acc" id="connectBtn">Connect Xaman</button>';
