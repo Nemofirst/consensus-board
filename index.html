@@ -267,6 +267,22 @@ footer{border-top:1px solid var(--line);padding:28px clamp(16px,4vw,40px);displa
   </div>
 </div>
 
+<!-- promote modal (open auction) -->
+<div class="overlay" id="promoModal">
+  <div class="sheet">
+    <button class="close-x" data-close>&times;</button>
+    <h4>Promote this post</h4>
+    <p class="sub">Promotion is an open auction: your bid buys a labeled promoted slot for 24 hours, and the highest bids sit highest. Bids are public. Organic ranking is never affected.</p>
+    <div class="amounts" id="bidPresets">
+      <button data-bid="10">10 XRP</button>
+      <button data-bid="25" class="sel">25 XRP</button>
+      <button data-bid="100">100 XRP</button>
+    </div>
+    <input type="number" id="bidInput" min="5" step="1" placeholder="Custom bid — min 5 XRP" class="mono" style="width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--txt);font-size:14px;padding:12px 14px;outline:none;margin-bottom:16px">
+    <button class="btn btn-acc" id="bidConfirm" style="width:100%">Create payment request</button>
+  </div>
+</div>
+
 <!-- pay modal (posting fee / promotion) -->
 <div class="overlay" id="payModal">
   <div class="sheet">
@@ -291,7 +307,7 @@ const hue=a=>{let x=0;for(const c of a)x=(x*31+c.charCodeAt(0))>>>0;return x%360
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const api=async(path,opts)=>{const r=await fetch('/api/'+path,opts?{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(opts)}:undefined);return r.json()};
 
-let S={me:null,demo:false,posts:[]},tab='today',tipTarget=null,tipAmt=5,prevRanks={},booted=false,pollTimer=null;
+let S={me:null,demo:false,posts:[]},tab='today',tipTarget=null,tipAmt=5,promoTarget=null,prevRanks={},booted=false,pollTimer=null;
 
 const likeSVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg>';
 const tipSVG='<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M1.5 2.5h3L8 6l3.5-3.5h3L9.4 8l5.1 5.5h-3L8 10l-3.5 3.5h-3L6.6 8 1.5 2.5Z" fill="currentColor"/></svg>';
@@ -311,7 +327,7 @@ function render(){
   let posts=[...S.posts];
   if(tab==='subs')posts=posts.filter(p=>p.subscribed||p.addr===S.me);
   posts.sort(tab==='all'?(a,b)=>(b.likes+3*b.tips)-(a.likes+3*a.tips):(a,b)=>score(b)-score(a));
-  if(tab==='today')posts.sort((a,b)=>(b.promoted?1:0)-(a.promoted?1:0));
+  if(tab==='today')posts.sort((a,b)=>((b.promoted?1:0)-(a.promoted?1:0))||((b.promoBid||0)-(a.promoBid||0)));
   const feed=$('#feed');feed.innerHTML='';
   if(!posts.length){
     feed.innerHTML=`<div class="empty">${tab==='subs'?'Nothing here yet. Subscribe to accounts on the board and their posts become your personal feed.':'The board is empty. Connect your wallet and write the first post — someone has to start the conversation.'}</div>`;
@@ -337,7 +353,7 @@ function render(){
           <span class="subsc mono">${fmt(p.followers)} subs</span>
           ${own?'':`<button class="sub-btn ${p.subscribed?'on':''}" data-sub="${esc(p.addr)}">${p.subscribed?'Subscribed':'Subscribe'}</button>`}
           <span>${ago(p.ts)} ago</span>
-          ${isPromo?'<span class="badge gold" title="Paid placement — does not affect organic ranking">promoted</span>':(r===1?'<span class="badge verified">top of the board</span>':'')}
+          ${isPromo?'<span class="badge gold" title="Paid placement — highest bids rank highest. Does not affect organic ranking">'+('promoted'+(p.promoBid?' · '+fmt(p.promoBid)+' XRP bid':''))+'</span>':(r===1?'<span class="badge verified">top of the board</span>':'')}
         </div>
         <p class="post-text">${esc(p.text)}</p>
         <div class="post-foot">
@@ -345,7 +361,7 @@ function render(){
           <button class="act" data-tip="${p.id}">${tipSVG}Tip</button>
           ${p.tips?(p.hideTips?'<span class="badge" title="Author hides tip totals here. Amounts remain public on-ledger.">tips private</span>':`<span class="tipped">${fmt(p.tips)} XRP tipped</span>`):''}
           ${own?`<button class="act" data-priv="${p.id}" title="Amounts remain public on-ledger">${p.hideTips?'Show tips':'Hide tips'}</button>`:''}
-          ${own&&!p.promoted?`<button class="act" data-promo="${p.id}" title="25 XRP for a labeled 24h promoted slot">Promote</button>`:''}
+          ${own?`<button class="act" data-promo="${p.id}" title="Bid for a labeled 24h promoted slot — highest bids rank highest">${p.promoted?'Raise bid':'Promote'}</button>`:''}
           <span class="score">score <b>${score(p).toFixed(1)}</b></span>
         </div>
       </div>`;
@@ -399,10 +415,10 @@ document.addEventListener('click',async e=>{
   }
   const promo=e.target.closest('[data-promo]');
   if(promo){
-    const r=await api('promote',{postId:promo.dataset.promo});
-    if(r.error)return toast(r.error);
-    if(r.promoted){await load();toast('Post promoted for 24h');burst();return}
-    if(r.uuid)payFlow(r,'Promote this post','25 XRP buys a clearly labeled promoted slot for 24 hours. Promotion never changes organic ranking or scores.','promote',async()=>{await load();toast('Post promoted for 24h');burst()});
+    promoTarget=promo.dataset.promo;
+    $('#bidInput').value='';
+    document.querySelectorAll('#bidPresets button').forEach((x,i)=>x.classList.toggle('sel',i===1));
+    $('#promoModal').classList.add('open');
     return;
   }
   const tip=e.target.closest('[data-tip]');
@@ -495,6 +511,24 @@ $('#tipConfirm').onclick=async()=>{
     else if(s.expired){stopPoll();$('#tipStatus').textContent='Request expired — close and try again.'}
     else if(s.failed){stopPoll();$('#tipStatus').textContent='Payment failed: '+esc(s.result||'unknown')}
   },2500);
+};
+
+/* ---------------- promotion bidding ---------------- */
+document.querySelectorAll('#bidPresets button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#bidPresets button').forEach(x=>x.classList.remove('sel'));
+  b.classList.add('sel');$('#bidInput').value=b.dataset.bid;
+});
+$('#bidConfirm').onclick=async()=>{
+  const sel=document.querySelector('#bidPresets button.sel');
+  const bid=Number($('#bidInput').value)||(sel?Number(sel.dataset.bid):0);
+  if(bid<5)return toast('Minimum bid is 5 XRP');
+  const btn=$('#bidConfirm');btn.disabled=true;btn.innerHTML='<span class="spin"></span>Creating request…';
+  const r=await api('promote',{postId:promoTarget,amount:bid});
+  btn.disabled=false;btn.textContent='Create payment request';
+  if(r.error)return toast(r.error);
+  $('#promoModal').classList.remove('open');
+  if(r.promoted){await load();toast('Post promoted for 24h');burst();return}
+  if(r.uuid)payFlow(r,'Promote this post','Your '+bid+' XRP bid buys a labeled promoted slot for 24 hours. Highest bids rank highest.','promote',async()=>{await load();toast('Promoted · '+bid+' XRP bid');burst()});
 };
 
 /* ---------------- toast / ticker / effects ---------------- */
