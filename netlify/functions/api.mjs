@@ -109,7 +109,7 @@ export default async (req) => {
       const last = posts.filter((p) => p.addr === me).sort((a, b) => b.ts - a.ts)[0];
       if (last && Date.now() - last.ts < 60e3) return j({ error: "one post per minute" }, 429);
       const treasury = process.env.PLATFORM_WALLET;
-      if (!hasXumm() || !treasury) {
+      if (!hasXumm() || !treasury || me === treasury) { // treasury account posts free (self-payments are invalid on XRPL)
         posts.push({ id: crypto.randomUUID(), addr: me, text: t, ts: Date.now(), likes: [], tips: 0, hideTips: !!hideTips });
         await setPosts(posts);
         return j({ ok: true });
@@ -149,6 +149,11 @@ export default async (req) => {
       const p = posts.find((x) => x.id === postId);
       if (!p) return j({ error: "not found" }, 404);
       if (p.addr !== me) return j({ error: "you can only promote your own posts" }, 403);
+      if (me === treasury) { // owner promotes free
+        p.promotedUntil = Date.now() + 24 * 3600e3;
+        await setPosts(posts);
+        return j({ promoted: true });
+      }
       const pay = await xumm("payload", "POST", {
         txjson: { TransactionType: "Payment", Destination: treasury, Amount: "25000000" },
         options: { expire: 5, submit: true },
