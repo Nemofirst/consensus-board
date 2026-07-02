@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consensus — the crypto community board on XRPL</title>
+<meta name="description" content="One board for the whole crypto community. Post to a single global feed — likes and XRP tips decide what rises. Built on the XRP Ledger.">
+<meta property="og:title" content="Consensus — the crypto community board on XRPL">
+<meta property="og:description" content="One global feed. Likes and XRP tips decide what rises. No algorithm.">
+<meta property="og:image" content="/hero.webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#05080d; --bg2:#080d15; --panel:#0b1220; --panel2:#0e1626;
+  --line:rgba(148,183,220,.10); --line2:rgba(148,183,220,.18);
+  --txt:#e6eef8; --txt2:#8fa3bb; --txt3:#5b6e86;
+  --acc:#2ee6c8; --acc-dim:rgba(46,230,200,.14); --acc-line:rgba(46,230,200,.35);
+  --gold:#f0c674; --r:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--txt);font-family:'Space Grotesk',ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100dvh;overflow-x:hidden}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+::selection{background:var(--acc-dim);color:var(--acc)}
+body::after{content:"";position:fixed;inset:0;z-index:60;pointer-events:none;opacity:.35;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E")}
+header{position:sticky;top:0;z-index:40;height:64px;display:flex;align-items:center;gap:20px;padding:0 clamp(16px,4vw,40px);background:rgba(5,8,13,.72);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.04em;font-size:15px}
+.ledger-tick{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--txt3)}
+.ledger-tick .dot{width:6px;height:6px;border-radius:99px;background:var(--acc);box-shadow:0 0 8px var(--acc)}
+@media(prefers-reduced-motion:no-preference){.ledger-tick .dot{animation:pulse 2.4s ease-in-out infinite}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.btn{border:1px solid var(--line2);background:var(--panel);color:var(--txt);font:inherit;font-size:13px;font-weight:600;padding:9px 16px;border-radius:99px;cursor:pointer;transition:transform .15s,border-color .2s,background .2s;white-space:nowrap}
+.btn:hover{border-color:var(--acc-line)}
+.btn:active{transform:scale(.98)}
+.btn-acc{background:var(--acc);color:#04231d;border-color:transparent}
+.btn-acc:hover{background:#48f0d6}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.wallet-chip{display:flex;align-items:center;gap:8px;font-size:12.5px;border:1px solid var(--acc-line);background:var(--acc-dim);color:var(--acc);padding:8px 14px;border-radius:99px;cursor:pointer}
+.demo-band{background:rgba(240,198,116,.08);border-bottom:1px solid rgba(240,198,116,.25);color:var(--gold);font-size:12px;text-align:center;padding:7px 16px}
+.hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line)}
+.hero-bg{position:absolute;inset:0;background-image:url("/hero.webp");background-size:cover;background-position:center;opacity:.85}
+.hero-bg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,8,13,.55) 0%,rgba(5,8,13,.35) 45%,var(--bg) 98%)}
+#threads{position:absolute;inset:0;pointer-events:none}
+.hero-in{position:relative;max-width:1160px;margin:0 auto;padding:clamp(56px,9vh,96px) clamp(16px,4vw,40px) clamp(40px,6vh,64px);display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:48px;align-items:end}
+.eyebrow{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--acc);margin-bottom:18px;display:flex;align-items:center;gap:10px}
+.eyebrow::before{content:"";width:28px;height:1px;background:var(--acc-line)}
+h1{font-size:clamp(34px,5.2vw,60px);line-height:1.02;letter-spacing:-.03em;font-weight:700}
+h1 .shine{background:linear-gradient(100deg,var(--acc) 20%,#bffcf1 40%,var(--acc) 60%);-webkit-background-clip:text;background-clip:text;color:transparent;background-size:200% 100%}
+@media(prefers-reduced-motion:no-preference){h1 .shine{animation:shine 5s linear infinite}}
+@keyframes shine{to{background-position:-200% 0}}
+.hero p{margin-top:18px;font-size:16px;color:var(--txt2);max-width:44ch;line-height:1.55}
+.hero-cta{margin-top:28px;display:flex;gap:12px;align-items:center}
+.hero-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;backdrop-filter:blur(10px)}
+.stat{background:rgba(11,18,32,.75);padding:18px 16px}
+.stat b{display:block;font-size:clamp(20px,2.4vw,28px);font-weight:600;letter-spacing:-.02em}
+.stat span{font-size:11px;color:var(--txt3);letter-spacing:.08em;text-transform:uppercase}
+@media(max-width:860px){.hero-in{grid-template-columns:1fr;gap:32px}.hero-stats{max-width:440px}}
+main{max-width:1160px;margin:0 auto;padding:0 clamp(16px,4vw,40px) 120px}
+.board-head{display:flex;align-items:center;gap:16px;padding:36px 0 20px;flex-wrap:wrap}
+.board-head h2{font-size:20px;letter-spacing:-.01em}
+.tabs{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:3px;margin-left:auto}
+.tabs button{font:inherit;font-size:12.5px;font-weight:600;color:var(--txt2);background:none;border:0;padding:7px 16px;border-radius:99px;cursor:pointer;transition:color .2s}
+.tabs button.on{background:var(--acc-dim);color:var(--acc)}
+.rule-note{font-size:12px;color:var(--txt3)}
+.rule-note b{color:var(--txt2);font-weight:500}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:28px;align-items:start}
+@media(max-width:980px){.grid{grid-template-columns:1fr}}
+.post{display:grid;grid-template-columns:64px minmax(0,1fr);background:var(--panel);border:1px solid var(--line);border-radius:var(--r);margin-bottom:14px;overflow:hidden;position:relative;transition:transform .18s,border-color .25s,box-shadow .25s}
+.post:hover{transform:translateY(-2px);border-color:var(--line2)}
+.post.top1{border-color:var(--acc-line);box-shadow:0 0 0 1px var(--acc-line),0 12px 44px -18px rgba(46,230,200,.4)}
+.post.top1::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--acc)}
+.rank{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border-right:1px solid var(--line);background:var(--bg2);padding:18px 0}
+.rank b{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;color:var(--txt2)}
+.post.top1 .rank b{color:var(--acc);text-shadow:0 0 18px rgba(46,230,200,.6)}
+.rank .delta{font-size:10px;font-family:'JetBrains Mono',monospace}
+.delta.up{color:var(--acc)} .delta.dn{color:#e0707c} .delta.fl{color:var(--txt3)}
+.post-body{padding:16px 20px 14px}
+.post-meta{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--txt3);flex-wrap:wrap}
+.avatar{width:26px;height:26px;border-radius:8px;flex:none;display:grid;place-items:center;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;color:#04231d}
+.addr{font-family:'JetBrains Mono',monospace;color:var(--txt2);font-size:12px}
+.badge{font-size:10px;padding:2px 8px;border-radius:99px;border:1px solid var(--line2);color:var(--txt3);letter-spacing:.05em}
+.badge.verified{border-color:var(--acc-line);color:var(--acc)}
+.subsc{font-size:10.5px;color:var(--txt3)}
+.sub-btn{font:inherit;font-size:10.5px;font-weight:600;color:var(--txt2);background:none;border:1px solid var(--line2);border-radius:99px;padding:3px 10px;cursor:pointer;transition:all .15s}
+.sub-btn:hover{border-color:var(--acc-line);color:var(--acc)}
+.sub-btn.on{background:var(--acc-dim);border-color:var(--acc-line);color:var(--acc)}
+.post-text{margin:12px 0 14px;font-size:15px;line-height:1.55;color:var(--txt);word-wrap:break-word}
+.post-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.act{display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:12.5px;font-weight:600;color:var(--txt2);background:var(--bg2);border:1px solid var(--line);border-radius:99px;padding:7px 14px;cursor:pointer;transition:all .18s}
+.act:hover{border-color:var(--acc-line);color:var(--txt)}
+.act:active{transform:scale(.96)}
+.act.liked{background:var(--acc-dim);border-color:var(--acc-line);color:var(--acc)}
+.score{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--txt3)}
+.score b{color:var(--txt2);font-weight:500}
+.tipped{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--gold)}
+@media(prefers-reduced-motion:no-preference){
+  .reveal{opacity:0;transform:translateY(16px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+  .reveal.in{opacity:1;transform:none}
+}
+.side{position:sticky;top:88px;display:flex;flex-direction:column;gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:20px}
+.card h3{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3);font-weight:600;margin-bottom:14px}
+textarea{width:100%;min-height:96px;resize:vertical;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--txt);font:inherit;font-size:14px;line-height:1.5;padding:12px 14px;outline:none;transition:border-color .2s}
+textarea:focus{border-color:var(--acc-line)}
+textarea::placeholder{color:var(--txt3)}
+.priv{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:var(--txt2);cursor:pointer;flex-wrap:wrap}
+.priv input{accent-color:var(--acc)}
+.priv em{font-style:normal;color:var(--txt3);font-size:10.5px}
+.compose-foot{display:flex;align-items:center;gap:10px;margin-top:12px}
+.charc{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--txt3)}
+.how li{list-style:none;display:flex;gap:12px;padding:10px 0;border-top:1px solid var(--line);font-size:13px;color:var(--txt2);line-height:1.5}
+.how li:first-child{border-top:0;padding-top:0}
+.how .n{font-family:'JetBrains Mono',monospace;color:var(--acc);font-size:12px;padding-top:2px}
+.ledgerbox{display:flex;flex-direction:column;gap:8px}
+.lrow{display:flex;justify-content:space-between;font-size:12px;color:var(--txt3)}
+.lrow b{font-family:'JetBrains Mono',monospace;color:var(--txt2);font-weight:500}
+.overlay{position:fixed;inset:0;z-index:80;background:rgba(3,5,9,.7);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:20px}
+.overlay.open{display:flex}
+.sheet{width:min(400px,100%);background:var(--panel2);border:1px solid var(--line2);border-radius:20px;padding:26px;position:relative}
+@media(prefers-reduced-motion:no-preference){.overlay.open .sheet{animation:rise .35s cubic-bezier(.16,1,.3,1)}}
+@keyframes rise{from{opacity:0;transform:translateY(22px) scale(.98)}to{opacity:1;transform:none}}
+.sheet h4{font-size:17px;letter-spacing:-.01em;margin-bottom:6px}
+.sheet .sub{font-size:13px;color:var(--txt2);line-height:1.5;margin-bottom:18px}
+.xam{display:flex;align-items:center;gap:10px;background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:12.5px;color:var(--txt2)}
+.xam .mark{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#1c2c46,#0c1624);border:1px solid var(--line2);display:grid;place-items:center;flex:none}
+.amounts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.amounts button{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--txt2);background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:14px 0;cursor:pointer;transition:all .15s}
+.amounts button.sel{border-color:var(--acc-line);color:var(--acc);background:var(--acc-dim)}
+.qrbox{text-align:center;margin:4px 0 16px}
+.qrbox img{width:170px;height:170px;border-radius:12px;background:#fff;padding:8px}
+.qrbox .status{margin-top:10px;font-size:12px;color:var(--txt3)}
+.spin{width:16px;height:16px;border:2px solid rgba(4,35,29,.3);border-top-color:#04231d;border-radius:99px;display:inline-block;vertical-align:-3px;margin-right:8px}
+@media(prefers-reduced-motion:no-preference){.spin{animation:rot .7s linear infinite}}
+@keyframes rot{to{transform:rotate(360deg)}}
+.close-x{position:absolute;top:14px;right:14px;background:none;border:0;color:var(--txt3);font-size:20px;cursor:pointer;line-height:1}
+.close-x:hover{color:var(--txt)}
+.proto-note{font-size:11px;color:var(--txt3);text-align:center;margin-top:14px;line-height:1.5}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);z-index:90;background:var(--panel2);border:1px solid var(--acc-line);color:var(--txt);font-size:13px;padding:12px 20px;border-radius:99px;opacity:0;transition:all .35s cubic-bezier(.16,1,.3,1);display:flex;gap:8px;align-items:center;pointer-events:none;white-space:nowrap}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast .mono{color:var(--acc)}
+footer{border-top:1px solid var(--line);padding:28px clamp(16px,4vw,40px);display:flex;gap:16px;align-items:center;font-size:12px;color:var(--txt3);max-width:1160px;margin:0 auto;flex-wrap:wrap}
+.empty{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);text-align:center;color:var(--txt3);font-size:13px;padding:40px 20px;line-height:1.6}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+      <path d="M11 1.5 19.2 6.25v9.5L11 20.5 2.8 15.75v-9.5L11 1.5Z" stroke="#2ee6c8" stroke-width="1.6"/>
+      <path d="M11 6.2 15.1 8.6v4.8L11 15.8l-4.1-2.4V8.6L11 6.2Z" fill="#2ee6c8" fill-opacity=".25" stroke="#2ee6c8" stroke-width="1.1"/>
+    </svg>
+    CONSENSUS
+  </div>
+  <div class="ledger-tick mono"><span class="dot"></span><span>XRPL ledger</span><b id="ledgerNo" style="color:var(--txt2);font-weight:500">#—</b><span id="ledgerAgo"></span></div>
+  <span id="authSlot"><button class="btn btn-acc" id="connectBtn">Connect Xaman</button></span>
+</header>
+<div class="demo-band" id="demoBand" style="display:none">Demo mode — wallet sign-in is simulated until Xaman API keys are configured.</div>
+
+<section class="hero">
+  <div class="hero-bg"></div>
+  <canvas id="threads"></canvas>
+  <div class="hero-in">
+    <div>
+      <div class="eyebrow">Built on the XRP Ledger</div>
+      <h1>One board.<br>Ranked by the <span class="shine">whole community</span>.</h1>
+      <p>Post to a single global feed. Likes and XRP tips decide what rises. No algorithm, no channels — one transparent ranking.</p>
+      <div class="hero-cta">
+        <button class="btn btn-acc" id="ctaPost">Post to the board</button>
+        <button class="btn" id="ctaHow">How ranking works</button>
+      </div>
+    </div>
+    <div class="hero-stats reveal">
+      <div class="stat"><b class="mono" id="stPosts">0</b><span>posts</span></div>
+      <div class="stat"><b class="mono" id="stAccts">0</b><span>accounts</span></div>
+      <div class="stat"><b class="mono" id="stTips">0</b><span>XRP tipped</span></div>
+    </div>
+  </div>
+</section>
+
+<main>
+  <div class="board-head">
+    <h2>The Board</h2>
+    <span class="rule-note">score = <b>likes + 3×tips</b>, decayed by age · one like per account</span>
+    <div class="tabs">
+      <button class="on" data-tab="today">Today</button>
+      <button data-tab="all">All time</button>
+      <button data-tab="subs">Subscribed</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div id="feed"><div class="empty">Loading the board…</div></div>
+
+    <aside class="side">
+      <div class="card" id="composerCard">
+        <h3>New post</h3>
+        <textarea id="composer" maxlength="420" placeholder="Say it to everyone at once…"></textarea>
+        <label class="priv"><input type="checkbox" id="hideTipsChk"><span>Hide tip totals on this post</span><em>amounts stay visible on-ledger</em></label>
+        <div class="compose-foot">
+          <span class="charc"><span id="cc">0</span>/420</span>
+          <button class="btn btn-acc" id="postBtn" style="margin-left:auto">Sign &amp; post</button>
+        </div>
+      </div>
+
+      <div class="card" id="howCard">
+        <h3>How it works</h3>
+        <ul class="how">
+          <li><span class="n">01</span><span>Sign in with your Xaman wallet — your XRPL account is your identity. The 1 XRP account reserve keeps bot armies expensive.</span></li>
+          <li><span class="n">02</span><span>Like once per account. Tip in XRP to push a post harder — tips go straight to the author's wallet, never through us.</span></li>
+          <li><span class="n">03</span><span>Ranking is public math, not a black box. Scores decay with age so the board stays alive.</span></li>
+        </ul>
+      </div>
+
+      <div class="card ledgerbox">
+        <h3>Network</h3>
+        <div class="lrow"><span>Ledger index</span><b id="sideLedger">#—</b></div>
+        <div class="lrow"><span>Close time</span><b>~3.8s</b></div>
+        <div class="lrow"><span>Tx fee</span><b>0.000012 XRP</b></div>
+        <div class="lrow"><span>Board epoch resets</span><b id="epoch">—</b></div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<footer>
+  <span>CONSENSUS</span>
+  <span>Non-custodial — tips settle wallet-to-wallet on the XRP Ledger</span>
+</footer>
+
+<!-- connect modal -->
+<div class="overlay" id="connectModal">
+  <div class="sheet">
+    <button class="close-x" data-close>&times;</button>
+    <h4>Connect Xaman</h4>
+    <p class="sub">Scan with the Xaman app to sign in with your XRPL account. No password, no email — your wallet is your identity.</p>
+    <div class="qrbox" id="signinQr"></div>
+    <p class="proto-note">Don't have Xaman? Get it at xaman.app — it's the standard XRPL wallet.</p>
+  </div>
+</div>
+
+<!-- tip modal -->
+<div class="overlay" id="tipModal">
+  <div class="sheet">
+    <button class="close-x" data-close>&times;</button>
+    <h4>Tip this post</h4>
+    <p class="sub">XRP goes straight from your wallet to the author's — we never touch it. Tips count 3× in ranking.</p>
+    <div id="tipBody">
+      <div class="amounts">
+        <button data-amt="1">1 XRP</button>
+        <button data-amt="5" class="sel">5 XRP</button>
+        <button data-amt="20">20 XRP</button>
+      </div>
+      <div class="xam"><span class="mark">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 3h3.5L8 6l2.5-3H14L9.7 8 14 13h-3.5L8 10l-2.5 3H2l4.3-5L2 3Z" fill="#2ee6c8"/></svg>
+        </span><span>A payment request opens in <b style="color:var(--txt)">Xaman</b> — you approve, the ledger settles in ~4 seconds.</span></div>
+      <button class="btn btn-acc" id="tipConfirm" style="width:100%">Create payment request</button>
+    </div>
+    <div class="qrbox" id="tipQr" style="display:none"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const short=a=>a.slice(0,6)+'…'+a.slice(-4);
+const hrs=ts=>(Date.now()-ts)/3600e3;
+const score=p=>(p.likes+3*p.tips)/Math.pow(hrs(p.ts)+2,1.3);
+const fmt=n=>n>=1000?(n/1000).toFixed(1).replace('.0','')+'k':''+Math.round(n);
+const ago=ts=>{const h=hrs(ts);if(h<1)return Math.max(1,Math.round(h*60))+'m';if(h<24)return Math.round(h)+'h';return Math.round(h/24)+'d'};
+const hue=a=>{let x=0;for(const c of a)x=(x*31+c.charCodeAt(0))>>>0;return x%360};
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const api=async(path,opts)=>{const r=await fetch('/api/'+path,opts?{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(opts)}:undefined);return r.json()};
+
+let S={me:null,demo:false,posts:[]},tab='today',tipTarget=null,tipAmt=5,prevRanks={},booted=false,pollTimer=null;
+
+const likeSVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg>';
+const tipSVG='<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M1.5 2.5h3L8 6l3.5-3.5h3L9.4 8l5.1 5.5h-3L8 10l-3.5 3.5h-3L6.6 8 1.5 2.5Z" fill="currentColor"/></svg>';
+
+/* ---------------- feed ---------------- */
+async function load(){
+  try{S=await api('feed')}catch(e){$('#feed').innerHTML='<div class="empty">Could not reach the board. Refresh to retry.</div>';return}
+  $('#demoBand').style.display=S.demo?'':'none';
+  renderAuth();render();
+}
+function renderAuth(){
+  $('#authSlot').innerHTML=S.me
+    ?`<span class="wallet-chip mono" id="walletChip" title="Click to sign out">${short(S.me)}<span style="width:6px;height:6px;border-radius:99px;background:var(--acc)"></span></span>`
+    :'<button class="btn btn-acc" id="connectBtn">Connect Xaman</button>';
+}
+function render(){
+  let posts=[...S.posts];
+  if(tab==='subs')posts=posts.filter(p=>p.subscribed||p.addr===S.me);
+  posts.sort(tab==='all'?(a,b)=>(b.likes+3*b.tips)-(a.likes+3*a.tips):(a,b)=>score(b)-score(a));
+  const feed=$('#feed');feed.innerHTML='';
+  if(!posts.length){
+    feed.innerHTML=`<div class="empty">${tab==='subs'?'Nothing here yet. Subscribe to accounts on the board and their posts become your personal feed.':'The board is empty. Connect your wallet and write the first post — someone has to start the conversation.'}</div>`;
+    stats();return;
+  }
+  posts.forEach((p,i)=>{
+    const r=i+1,prev=prevRanks[p.id];
+    let delta='<span class="delta fl">&mdash;</span>';
+    if(prev&&prev<r)delta='<span class="delta dn">▼'+(r-prev)+'</span>';
+    else if(prev&&prev>r)delta='<span class="delta up">▲'+(prev-r)+'</span>';
+    const own=S.me&&p.addr===S.me;
+    const el=document.createElement('article');
+    el.className='post'+(booted?'':' reveal')+(r===1?' top1':'');
+    el.innerHTML=`
+      <div class="rank"><b>${String(r).padStart(2,'0')}</b>${delta}</div>
+      <div class="post-body">
+        <div class="post-meta">
+          <span class="avatar" style="background:hsl(${hue(p.addr)} 65% 62%)">${esc(p.addr.slice(1,3).toUpperCase())}</span>
+          <span class="addr">${short(p.addr)}</span>
+          <span class="subsc mono">${fmt(p.followers)} subs</span>
+          ${own?'':`<button class="sub-btn ${p.subscribed?'on':''}" data-sub="${esc(p.addr)}">${p.subscribed?'Subscribed':'Subscribe'}</button>`}
+          <span>${ago(p.ts)} ago</span>
+          ${r===1?'<span class="badge verified">top of the board</span>':''}
+        </div>
+        <p class="post-text">${esc(p.text)}</p>
+        <div class="post-foot">
+          <button class="act ${p.liked?'liked':''}" data-like="${p.id}">${likeSVG}<span class="mono">${fmt(p.likes)}</span></button>
+          <button class="act" data-tip="${p.id}">${tipSVG}Tip</button>
+          ${p.tips?(p.hideTips?'<span class="badge" title="Author hides tip totals here. Amounts remain public on-ledger.">tips private</span>':`<span class="tipped">${fmt(p.tips)} XRP tipped</span>`):''}
+          ${own?`<button class="act" data-priv="${p.id}" title="Amounts remain public on-ledger">${p.hideTips?'Show tips':'Hide tips'}</button>`:''}
+          <span class="score">score <b>${score(p).toFixed(1)}</b></span>
+        </div>
+      </div>`;
+    feed.appendChild(el);
+    prevRanks[p.id]=r;
+  });
+  observeReveals();stats();booted=true;
+}
+function stats(){
+  animNum($('#stPosts'),S.posts.length);
+  animNum($('#stAccts'),new Set(S.posts.map(p=>p.addr)).size);
+  animNum($('#stTips'),S.posts.reduce((s,p)=>s+p.tips,0));
+}
+function animNum(el,to){
+  if(reduced){el.textContent=fmt(to);return}
+  const from=parseFloat(el.dataset.v||0),t0=performance.now();
+  el.dataset.v=to;
+  (function step(t){const k=Math.min(1,(t-t0)/700),e=1-Math.pow(1-k,3);
+    el.textContent=fmt(from+(to-from)*e);if(k<1)requestAnimationFrame(step)})(t0);
+}
+let io;
+function observeReveals(){
+  if(reduced){document.querySelectorAll('.reveal').forEach(e=>e.classList.add('in'));return}
+  io=io||new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){const t=e.target;t.classList.add('in');io.unobserve(t);setTimeout(()=>{t.classList.remove('reveal','in');t.style.transitionDelay=''},750)}}),{threshold:.12});
+  document.querySelectorAll('.reveal:not(.in)').forEach((e,i)=>{e.style.transitionDelay=Math.min(i*45,270)+'ms';io.observe(e)});
+}
+
+/* ---------------- interactions ---------------- */
+document.addEventListener('click',async e=>{
+  if(e.target.closest('#connectBtn'))return openConnect();
+  if(e.target.closest('#walletChip')){if(confirm('Sign out?')){await api('logout',{});location.reload()}return}
+  const like=e.target.closest('[data-like]');
+  if(like){
+    if(!S.me)return openConnect();
+    const r=await api('like',{postId:like.dataset.like});
+    if(r.ok){const p=S.posts.find(p=>p.id===like.dataset.like);p.likes=r.likes;p.liked=r.liked;render();if(r.liked)toast('Like recorded')}
+    return;
+  }
+  const sub=e.target.closest('[data-sub]');
+  if(sub){
+    if(!S.me)return openConnect();
+    const r=await api('subscribe',{addr:sub.dataset.sub});
+    if(r.ok){S.posts.forEach(p=>{if(p.addr===sub.dataset.sub){p.subscribed=r.subscribed;p.followers=r.followers}});render();toast(r.subscribed?'Subscribed · their posts join your feed':'Unsubscribed')}
+    return;
+  }
+  const priv=e.target.closest('[data-priv]');
+  if(priv){
+    const r=await api('privacy',{postId:priv.dataset.priv});
+    if(r.ok){S.posts.find(p=>p.id===priv.dataset.priv).hideTips=r.hideTips;render();toast(r.hideTips?'Tip totals hidden on the board · still public on-ledger':'Tip totals visible')}
+    return;
+  }
+  const tip=e.target.closest('[data-tip]');
+  if(tip){
+    if(!S.me)return openConnect();
+    tipTarget=tip.dataset.tip;resetTipModal();$('#tipModal').classList.add('open');
+    return;
+  }
+  if(e.target.closest('[data-close]')){e.target.closest('.overlay').classList.remove('open');stopPoll()}
+});
+document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o){o.classList.remove('open');stopPoll()}}));
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');tab=b.dataset.tab;prevRanks={};booted=false;render();
+});
+$('#composer').addEventListener('input',e=>$('#cc').textContent=e.target.value.length);
+$('#postBtn').onclick=async()=>{
+  const t=$('#composer').value.trim();
+  if(!S.me)return openConnect();
+  if(t.length<3)return toast('Write something first');
+  const btn=$('#postBtn');btn.disabled=true;btn.innerHTML='<span class="spin"></span>Posting…';
+  const r=await api('post',{text:t,hideTips:$('#hideTipsChk').checked});
+  btn.disabled=false;btn.textContent='Sign & post';
+  if(r.error)return toast(r.error);
+  $('#composer').value='';$('#cc').textContent='0';$('#hideTipsChk').checked=false;
+  prevRanks={};await load();toast('Posted to the board');
+};
+$('#ctaPost').onclick=()=>{$('#composer').focus();$('#composerCard').scrollIntoView({behavior:reduced?'auto':'smooth',block:'center'})};
+$('#ctaHow').onclick=()=>$('#howCard').scrollIntoView({behavior:reduced?'auto':'smooth',block:'center'});
+
+/* ---------------- sign-in ---------------- */
+function stopPoll(){clearInterval(pollTimer);pollTimer=null}
+async function openConnect(){
+  $('#connectModal').classList.add('open');
+  const box=$('#signinQr');box.innerHTML='<span class="status">Creating sign-in request…</span>';
+  const r=await api('signin',{});
+  if(r.demo&&r.account){$('#connectModal').classList.remove('open');await load();toast('Connected (demo)',short(r.account));return}
+  if(r.error){box.innerHTML=`<span class="status">${esc(r.error)}</span>`;return}
+  box.innerHTML=`<img src="${esc(r.qr)}" alt="Xaman sign-in QR"><div class="status">Scan with Xaman, or</div>
+    <a class="btn btn-acc" style="display:inline-block;margin-top:10px;text-decoration:none" href="${esc(r.deeplink)}" target="_blank" rel="noopener">Open in Xaman</a>
+    <div class="status" id="signinStatus">Waiting for your signature…</div>`;
+  stopPoll();
+  pollTimer=setInterval(async()=>{
+    const s=await api('signin?uuid='+r.uuid);
+    if(s.account){stopPoll();$('#connectModal').classList.remove('open');await load();toast('Connected',short(s.account))}
+    else if(s.expired){stopPoll();$('#signinStatus').textContent='Request expired — close and try again.'}
+  },2500);
+}
+
+/* ---------------- tips ---------------- */
+function resetTipModal(){$('#tipBody').style.display='';$('#tipQr').style.display='none';$('#tipQr').innerHTML=''}
+document.querySelectorAll('.amounts button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.amounts button').forEach(x=>x.classList.remove('sel'));
+  b.classList.add('sel');tipAmt=+b.dataset.amt;
+});
+$('#tipConfirm').onclick=async()=>{
+  const btn=$('#tipConfirm');btn.disabled=true;btn.innerHTML='<span class="spin"></span>Creating request…';
+  const r=await api('tip',{postId:tipTarget,amount:tipAmt});
+  btn.disabled=false;btn.textContent='Create payment request';
+  if(r.error)return toast(r.error);
+  if(r.demo&&r.credited){$('#tipModal').classList.remove('open');await load();toast(tipAmt+' XRP tipped (demo)');burst();return}
+  $('#tipBody').style.display='none';
+  const box=$('#tipQr');box.style.display='';
+  box.innerHTML=`<img src="${esc(r.qr)}" alt="Xaman payment QR"><div class="status">Scan with Xaman, or</div>
+    <a class="btn btn-acc" style="display:inline-block;margin-top:10px;text-decoration:none" href="${esc(r.deeplink)}" target="_blank" rel="noopener">Open in Xaman</a>
+    <div class="status" id="tipStatus">Waiting for your signature…</div>`;
+  stopPoll();
+  pollTimer=setInterval(async()=>{
+    const s=await api('tip?uuid='+r.uuid);
+    if(s.credited){stopPoll();$('#tipModal').classList.remove('open');await load();toast(tipAmt+' XRP tipped · settled on-ledger');burst()}
+    else if(s.expired){stopPoll();$('#tipStatus').textContent='Request expired — close and try again.'}
+    else if(s.failed){stopPoll();$('#tipStatus').textContent='Payment failed: '+esc(s.result||'unknown')}
+  },2500);
+};
+
+/* ---------------- toast / ticker / effects ---------------- */
+let toastT;
+function toast(msg,mono){
+  const t=$('#toast');t.innerHTML=esc(msg)+(mono?`<span class="mono">${esc(mono)}</span>`:'');
+  t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2800);
+}
+/* real XRPL ledger index via public cluster; simulated fallback */
+let ledger=0,lastClose=Date.now(),realLedger=false;
+async function pollLedger(){
+  try{
+    const r=await fetch('https://xrplcluster.com/',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({method:'ledger',params:[{ledger_index:'validated'}]})});
+    const d=await r.json();const idx=d?.result?.ledger_index;
+    if(idx){if(idx!==ledger)lastClose=Date.now();ledger=idx;realLedger=true}
+  }catch(e){}
+}
+pollLedger();setInterval(pollLedger,4000);
+setInterval(()=>{
+  if(!realLedger){if(!ledger)ledger=97412036;if(Date.now()-lastClose>3800+Math.random()*800){ledger++;lastClose=Date.now()}}
+  $('#ledgerNo').textContent='#'+ledger.toLocaleString();
+  $('#sideLedger').textContent='#'+ledger.toLocaleString();
+  $('#ledgerAgo').textContent='closed '+Math.max(0,(Date.now()-lastClose)/1000).toFixed(1)+'s ago';
+},250);
+setInterval(()=>{
+  const d=new Date(),m=24*60-(d.getUTCHours()*60+d.getUTCMinutes());
+  $('#epoch').textContent=Math.floor(m/60)+'h '+(m%60)+'m';
+},1000);
+(function(){
+  if(reduced)return;
+  const cv=$('#threads'),ctx=cv.getContext('2d');let W,H,pts=[];
+  function size(){const r=cv.parentElement.getBoundingClientRect();W=cv.width=r.width;H=cv.height=r.height;
+    pts=Array.from({length:Math.min(46,W/28)},()=>({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*.25,vy:(Math.random()-.5)*.2}))}
+  size();addEventListener('resize',size);
+  (function loop(){
+    ctx.clearRect(0,0,W,H);
+    for(const p of pts){p.x+=p.vx;p.y+=p.vy;if(p.x<0||p.x>W)p.vx*=-1;if(p.y<0||p.y>H)p.vy*=-1}
+    for(let i=0;i<pts.length;i++)for(let jj=i+1;jj<pts.length;jj++){
+      const a=pts[i],b=pts[jj],d=Math.hypot(a.x-b.x,a.y-b.y);
+      if(d<130){ctx.strokeStyle=`rgba(46,230,200,${.14*(1-d/130)})`;ctx.lineWidth=1;
+        ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}}
+    ctx.fillStyle='rgba(46,230,200,.8)';
+    for(const p of pts){ctx.beginPath();ctx.arc(p.x,p.y,1.2,0,7);ctx.fill()}
+    requestAnimationFrame(loop);
+  })();
+})();
+function burst(){
+  if(reduced)return;
+  const c=document.createElement('canvas');c.style.cssText='position:fixed;inset:0;z-index:95;pointer-events:none';
+  c.width=innerWidth;c.height=innerHeight;document.body.appendChild(c);
+  const x=c.getContext('2d'),ps=Array.from({length:60},()=>({
+    x:innerWidth/2,y:innerHeight/2,vx:(Math.random()-.5)*14,vy:-Math.random()*12-3,
+    r:Math.random()*3+1.5,c:Math.random()>.3?'#2ee6c8':'#f0c674',a:1}));
+  let f=0;(function anim(){x.clearRect(0,0,c.width,c.height);let live=0;
+    for(const p of ps){p.x+=p.vx;p.y+=p.vy;p.vy+=.45;p.a-=.014;
+      if(p.a>0){live++;x.globalAlpha=p.a;x.fillStyle=p.c;x.beginPath();x.arc(p.x,p.y,p.r,0,7);x.fill()}}
+    if(live&&f++<120)requestAnimationFrame(anim);else c.remove()})();
+}
+
+load();
+setInterval(()=>{if(!document.querySelector('.overlay.open'))load()},30000);
+</script>
+</body>
+</html>
