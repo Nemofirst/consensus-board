@@ -1,4 +1,4 @@
-# Consensus — the crypto community board on XRPL
+# One Board — the crypto community board on XRPL
 
 One global feed. Likes and XRP tips decide what rises. Built on the XRP Ledger.
 
