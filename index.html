@@ -401,6 +401,7 @@ document.addEventListener('click',async e=>{
   if(promo){
     const r=await api('promote',{postId:promo.dataset.promo});
     if(r.error)return toast(r.error);
+    if(r.promoted){await load();toast('Post promoted for 24h');burst();return}
     if(r.uuid)payFlow(r,'Promote this post','25 XRP buys a clearly labeled promoted slot for 24 hours. Promotion never changes organic ranking or scores.','promote',async()=>{await load();toast('Post promoted for 24h');burst()});
     return;
   }
