@@ -85,7 +85,7 @@ export default async (req) => {
       const p = await xumm("payload", "POST", {
         txjson: { TransactionType: "SignIn" },
         options: { expire: 5 },
-        custom_meta: { instruction: "Sign in to Consensus — the XRPL community board" },
+        custom_meta: { instruction: "Sign in to One Board — the XRPL community board" },
       });
       return j({ uuid: p.uuid, qr: p.refs.qr_png, deeplink: p.next.always });
     }
@@ -167,7 +167,7 @@ export default async (req) => {
       const pay = await xumm("payload", "POST", {
         txjson: { TransactionType: "Payment", Destination: p.addr, Amount: String(Math.round(xrp * 1e6)) },
         options: { expire: 5, submit: true },
-        custom_meta: { instruction: `Tip ${xrp} XRP to ${p.addr.slice(0, 8)}… on Consensus` },
+        custom_meta: { instruction: `Tip ${xrp} XRP to ${p.addr.slice(0, 8)}… on One Board` },
       });
       await store().setJSON(`pendingtip/${pay.uuid}`, { postId, xrp, by: me });
       return j({ uuid: pay.uuid, qr: pay.refs.qr_png, deeplink: pay.next.always });
