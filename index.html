@@ -129,6 +129,26 @@ textarea::placeholder{color:var(--txt3)}
 .ledgerbox{display:flex;flex-direction:column;gap:8px}
 .lrow{display:flex;justify-content:space-between;font-size:12px;color:var(--txt3)}
 .lrow b{font-family:'JetBrains Mono',monospace;color:var(--txt2);font-weight:500}
+.author{cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.author:hover .addr,.author:hover .pname{color:var(--acc)}
+.pname{font-weight:600;color:var(--txt);font-size:13px}
+.profile-head{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.pavatar{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:18px;color:#04231d;flex:none}
+.pstats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:16px}
+.pstat{background:var(--bg2);padding:10px 6px;text-align:center}
+.pstat b{display:block;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:600}
+.pstat span{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--txt3)}
+.pposts{max-height:220px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.ppost{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:12.5px;color:var(--txt2);line-height:1.45}
+.ppost .pm{display:flex;gap:10px;margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--txt3)}
+.name-row{display:flex;gap:8px;margin-bottom:14px}
+.name-row input{flex:1;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--txt);font:inherit;font-size:13px;padding:10px 12px;outline:none}
+.name-row input:focus{border-color:var(--acc-line)}
+.leader-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:12.5px;cursor:pointer}
+.leader-row:first-child{border-top:0;padding-top:0}
+.leader-row:hover span{color:var(--acc)}
+.leader-row .ln{font-family:'JetBrains Mono',monospace;color:var(--txt3);font-size:11px;width:14px;flex:none}
+.leader-row .lx{margin-left:auto;font-family:'JetBrains Mono',monospace;color:var(--gold);font-size:11.5px}
 .overlay{position:fixed;inset:0;z-index:80;background:rgba(3,5,9,.7);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:20px}
 .overlay.open{display:flex}
 .sheet{width:min(400px,100%);background:var(--panel2);border:1px solid var(--line2);border-radius:20px;padding:26px;position:relative}
@@ -246,6 +266,11 @@ footer{border-top:1px solid var(--line);padding:28px clamp(16px,4vw,40px);displa
         </ul>
       </div>
 
+      <div class="card" id="leadersCard" style="display:none">
+        <h3>Top earners</h3>
+        <div id="leadersList"></div>
+      </div>
+
       <div class="card ledgerbox">
         <h3>Network</h3>
         <div class="lrow"><span>Ledger index</span><b id="sideLedger">#—</b></div>
@@ -291,6 +316,33 @@ footer{border-top:1px solid var(--line);padding:28px clamp(16px,4vw,40px);displa
       <button class="btn btn-acc" id="tipConfirm" style="width:100%">Create payment request</button>
     </div>
     <div class="qrbox" id="tipQr" style="display:none"></div>
+  </div>
+</div>
+
+<!-- profile modal -->
+<div class="overlay" id="profileModal">
+  <div class="sheet">
+    <button class="close-x" data-close>&times;</button>
+    <div class="profile-head">
+      <span class="pavatar" id="pfAvatar"></span>
+      <div style="min-width:0">
+        <h4 id="pfName" style="margin-bottom:2px"></h4>
+        <div class="addr" id="pfAddr" style="font-size:10.5px;word-break:break-all"></div>
+        <div style="font-size:11px;color:var(--txt3)" id="pfJoined"></div>
+      </div>
+      <button class="sub-btn" id="pfSub" style="margin-left:auto;flex:none"></button>
+    </div>
+    <div class="pstats">
+      <div class="pstat"><b id="pfTips">0</b><span>XRP earned</span></div>
+      <div class="pstat"><b id="pfSubs">0</b><span>subs</span></div>
+      <div class="pstat"><b id="pfLikes">0</b><span>likes</span></div>
+      <div class="pstat"><b id="pfBest">&mdash;</b><span>best rank</span></div>
+    </div>
+    <div id="pfOwn" style="display:none">
+      <div class="name-row"><input id="pfNameInput" maxlength="20" placeholder="Choose a display name"><button class="btn btn-acc" id="pfNameSave">Save</button></div>
+    </div>
+    <div class="pposts" id="pfPosts"></div>
+    <div id="pfOwnOut" style="display:none;text-align:center;margin-top:12px"><button class="btn" id="pfSignOut">Sign out</button></div>
   </div>
 </div>
 
@@ -343,7 +395,7 @@ const tipSVG='<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path 
 async function load(){
   try{S=await api('feed')}catch(e){$('#feed').innerHTML='<div class="empty">Could not reach the board. Refresh to retry.</div>';return}
   $('#demoBand').style.display=S.demo?'':'none';
-  renderAuth();render();
+  renderAuth();render();loadLeaders();
 }
 function setAppMode(on){
   document.documentElement.classList.toggle('app-mode',!!on);
@@ -352,7 +404,7 @@ function setAppMode(on){
 function renderAuth(){
   setAppMode(!!S.me);
   $('#authSlot').innerHTML=S.me
-    ?`<span class="wallet-chip mono" id="walletChip" title="Click to sign out">${short(S.me)}<span style="width:6px;height:6px;border-radius:99px;background:var(--acc)"></span></span>`
+    ?`<span class="wallet-chip mono" id="walletChip" title="Open your profile">${short(S.me)}<span style="width:6px;height:6px;border-radius:99px;background:var(--acc)"></span></span>`
     :'<button class="btn btn-acc" id="connectBtn">Connect Xaman</button>';
 }
 function render(){
@@ -380,8 +432,7 @@ function render(){
       <div class="rank"><b>${isPromo?'★':String(r).padStart(2,'0')}</b>${isPromo?'':delta}</div>
       <div class="post-body">
         <div class="post-meta">
-          <span class="avatar" style="background:hsl(${hue(p.addr)} 65% 62%)">${esc(p.addr.slice(1,3).toUpperCase())}</span>
-          <span class="addr">${short(p.addr)}</span>
+          <span class="author" data-prof="${esc(p.addr)}" title="View profile"><span class="avatar" style="background:hsl(${hue(p.addr)} 65% 62%)">${esc((p.name||p.addr.slice(1,3)).slice(0,2).toUpperCase())}</span>${p.name?`<span class="pname">${esc(p.name)}</span>`:''}<span class="addr">${short(p.addr)}</span></span>
           <span class="subsc mono">${fmt(p.followers)} subs</span>
           ${own?'':`<button class="sub-btn ${p.subscribed?'on':''}" data-sub="${esc(p.addr)}">${p.subscribed?'Subscribed':'Subscribe'}</button>`}
           <span>${ago(p.ts)} ago</span>
@@ -391,6 +442,7 @@ function render(){
         <div class="post-foot">
           <button class="act ${p.liked?'liked':''}" data-like="${p.id}">${likeSVG}<span class="mono">${fmt(p.likes)}</span></button>
           <button class="act" data-tip="${p.id}">${tipSVG}Tip</button>
+          <button class="act" data-share="${p.id}" data-rank="${isPromo?'★':r}">Share</button>
           ${p.tips?(p.hideTips?'<span class="badge" title="Author hides tip totals here. Amounts remain public on-ledger.">tips private</span>':`<span class="tipped">${fmt(p.tips)} XRP tipped</span>`):''}
           ${own?`<button class="act" data-priv="${p.id}" title="Amounts remain public on-ledger">${p.hideTips?'Show tips':'Hide tips'}</button>`:''}
           ${own?`<button class="act" data-promo="${p.id}" title="Bid for a labeled 24h promoted slot — highest bids rank highest">${p.promoted?'Raise bid':'Promote'}</button>`:''}
@@ -424,7 +476,11 @@ function observeReveals(){
 /* ---------------- interactions ---------------- */
 document.addEventListener('click',async e=>{
   if(e.target.closest('#connectBtn'))return openConnect();
-  if(e.target.closest('#walletChip')){if(confirm('Sign out?')){await api('logout',{});location.reload()}return}
+  if(e.target.closest('#walletChip')){openProfile(S.me);return}
+  const prof=e.target.closest('[data-prof]');
+  if(prof){openProfile(prof.dataset.prof);return}
+  const share=e.target.closest('[data-share]');
+  if(share){shareCard(share.dataset.share,share.dataset.rank||'&mdash;');return}
   const like=e.target.closest('[data-like]');
   if(like){
     if(!S.me)return openConnect();
@@ -544,6 +600,79 @@ $('#tipConfirm').onclick=async()=>{
     else if(s.failed){stopPoll();$('#tipStatus').textContent='Payment failed: '+esc(s.result||'unknown')}
   },2500);
 };
+
+/* ---------------- profiles ---------------- */
+async function openProfile(addr){
+  if(!addr)return;
+  const d=await api('profile?addr='+encodeURIComponent(addr));
+  if(d.error)return toast(d.error);
+  $('#pfAvatar').style.background=`hsl(${hue(addr)} 65% 62%)`;
+  $('#pfAvatar').textContent=(d.name||addr.slice(1,3)).slice(0,2).toUpperCase();
+  $('#pfName').textContent=d.name||short(addr);
+  $('#pfAddr').textContent=addr;
+  $('#pfJoined').textContent=d.joined?('joined '+new Date(d.joined).toLocaleDateString()):'';
+  $('#pfTips').textContent=fmt(d.totalTips);
+  $('#pfSubs').textContent=fmt(d.followers);
+  $('#pfLikes').textContent=fmt(d.totalLikes);
+  $('#pfBest').textContent=d.bestRank?('#'+d.bestRank):'—';
+  const own=S.me===addr;
+  $('#pfOwn').style.display=own?'':'none';
+  $('#pfOwnOut').style.display=own?'':'none';
+  if(own)$('#pfNameInput').value=d.name||'';
+  const sub=$('#pfSub');
+  if(own||!S.me){sub.style.display='none'}
+  else{sub.style.display='';sub.className='sub-btn'+(d.subscribed?' on':'');sub.textContent=d.subscribed?'Subscribed':'Subscribe';sub.dataset.addr=addr}
+  $('#pfPosts').innerHTML=(d.posts||[]).map(p=>`<div class="ppost">${esc(p.text)}<div class="pm"><span>${ago(p.ts)} ago</span><span>${fmt(p.likes)} likes</span><span>${p.tips===null?'tips private':fmt(p.tips)+' XRP'}</span></div></div>`).join('')||'<div class="ppost">No posts yet.</div>';
+  $('#profileModal').classList.add('open');
+}
+$('#pfNameSave').onclick=async()=>{
+  const r=await api('profile',{name:$('#pfNameInput').value.trim()});
+  if(r.error)return toast(r.error);
+  toast('Name saved');await load();openProfile(S.me);
+};
+$('#pfSignOut').onclick=async()=>{await api('logout',{});try{localStorage.removeItem('ob_app')}catch(e){};location.reload()};
+$('#pfSub').onclick=async()=>{
+  const a=$('#pfSub').dataset.addr;const r=await api('subscribe',{addr:a});
+  if(r.ok){await load();openProfile(a)}
+};
+
+/* ---------------- earnings leaderboard ---------------- */
+async function loadLeaders(){
+  try{
+    const d=await api('leaders');
+    const list=(d.week&&d.week.length)?d.week:(d.all||[]);
+    if(!list.length){$('#leadersCard').style.display='none';return}
+    $('#leadersCard').style.display='';
+    $('#leadersCard').querySelector('h3').textContent=(d.week&&d.week.length)?'Top earners · 7 days':'Top earners · all time';
+    $('#leadersList').innerHTML=list.map((e,i)=>`<div class="leader-row" data-prof="${esc(e.addr)}"><span class="ln">${i+1}</span><span class="avatar" style="width:22px;height:22px;font-size:9px;background:hsl(${hue(e.addr)} 65% 62%)">${esc((e.name||e.addr.slice(1,3)).slice(0,2).toUpperCase())}</span><span>${e.name?esc(e.name):short(e.addr)}</span><span class="lx">${e.xrp%1?e.xrp.toFixed(1):e.xrp} XRP</span></div>`).join('');
+  }catch(e){}
+}
+
+/* ---------------- share cards ---------------- */
+async function shareCard(id,rankLabel){
+  const p=S.posts.find(x=>x.id===id);if(!p)return;
+  const c=document.createElement('canvas');c.width=1200;c.height=675;
+  const x=c.getContext('2d');
+  x.fillStyle='#05080d';x.fillRect(0,0,1200,675);
+  x.strokeStyle='rgba(46,230,200,.45)';x.lineWidth=2;x.strokeRect(24,24,1152,627);
+  x.fillStyle='#2ee6c8';x.font='700 34px "Space Grotesk",sans-serif';x.fillText('ONE BOARD',60,100);
+  x.fillStyle='#5b6e86';x.font='500 22px "JetBrains Mono",monospace';x.fillText('rank '+rankLabel.replace('&mdash;','—')+' · one-board.xyz',60,138);
+  x.fillStyle='#e6eef8';x.font='600 40px "Space Grotesk",sans-serif';
+  const words=p.text.split(' ');let line='',y=214;
+  for(const w of words){const t=line?line+' '+w:w;
+    if(x.measureText(t).width>1080){x.fillText(line,60,y);y+=54;line=w;if(y>510){line+=' …';break}}else line=t}
+  x.fillText(line,60,y);
+  x.fillStyle='#8fa3bb';x.font='500 24px "JetBrains Mono",monospace';
+  x.fillText((p.name||short(p.addr))+' · '+fmt(p.likes)+' likes · '+(p.hideTips?'tips private':fmt(p.tips)+' XRP tipped'),60,600);
+  const blob=await new Promise(r=>c.toBlob(r,'image/png'));
+  const file=new File([blob],'one-board-post.png',{type:'image/png'});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    try{await navigator.share({files:[file],text:'Live on One Board — one-board.xyz'});return}catch(e){}
+  }
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='one-board-post.png';a.click();
+  window.open('https://twitter.com/intent/tweet?text='+encodeURIComponent('Live on One Board')+'&url=https%3A%2F%2Fone-board.xyz','_blank','noopener');
+  toast('Card downloaded · attach it to your post');
+}
 
 /* ---------------- promotion bidding ---------------- */
 document.querySelectorAll('#bidPresets button').forEach(b=>b.onclick=()=>{
