@@ -73,6 +73,7 @@ export default async (req) => {
           tips: p.tips, followers: (followers[p.addr] || []).length,
           subscribed: mySubs.includes(p.addr),
           promoted: (p.promotedUntil || 0) > Date.now(),
+          promoBid: p.promoBid || 0,
         })),
       });
     }
@@ -144,7 +145,8 @@ export default async (req) => {
       if (!me) return j({ error: "sign in first" }, 401);
       const treasury = process.env.PLATFORM_WALLET;
       if (!hasXumm() || !treasury) return j({ error: "promotion not enabled" }, 400);
-      const { postId } = await req.json();
+      const { postId, amount } = await req.json();
+      const bid = Math.min(Math.max(Number(amount) || 0, 5), 10000);
       const posts = await getPosts();
       const p = posts.find((x) => x.id === postId);
       if (!p) return j({ error: "not found" }, 404);
@@ -155,11 +157,11 @@ export default async (req) => {
         return j({ promoted: true });
       }
       const pay = await xumm("payload", "POST", {
-        txjson: { TransactionType: "Payment", Destination: treasury, Amount: "25000000" },
+        txjson: { TransactionType: "Payment", Destination: treasury, Amount: String(Math.round(bid * 1e6)) },
         options: { expire: 5, submit: true },
-        custom_meta: { instruction: "Promote on One Board — 25 XRP for a 24h promoted slot" },
+        custom_meta: { instruction: `Promote on One Board — ${bid} XRP bid for a 24h promoted slot` },
       });
-      await store().setJSON(`pendingpromo/${pay.uuid}`, { postId, by: me });
+      await store().setJSON(`pendingpromo/${pay.uuid}`, { postId, by: me, bid });
       return j({ uuid: pay.uuid, qr: pay.refs.qr_png, deeplink: pay.next.always });
     }
     if (req.method === "GET" && path === "promote") {
@@ -173,7 +175,12 @@ export default async (req) => {
       if (!(await store().get(`promodone/${uuid}`))) {
         const posts = await getPosts();
         const post = posts.find((x) => x.id === pending.postId);
-        if (post) { post.promotedUntil = Date.now() + 24 * 3600e3; await setPosts(posts); }
+        if (post) {
+          const active = (post.promotedUntil || 0) > Date.now();
+          post.promoBid = (active ? (post.promoBid || 0) : 0) + (pending.bid || 0); // top-ups raise the bid
+          if (!active) post.promotedUntil = Date.now() + 24 * 3600e3;
+          await setPosts(posts);
+        }
         await store().set(`promodone/${uuid}`, "1");
       }
       return j({ promoted: true });
