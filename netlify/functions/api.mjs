@@ -60,6 +60,67 @@ const demoAddr = () => {
   return a;
 };
 
+/* ---- The Ten (Harberger slots) + Golden Hour + replies + discoverers ---- */
+const SLOT_N = 10, TAX_RATE = 0.03, MIN_PRICE = 5, MAX_PRICE = 10000, MAX_REPLY = 280;
+const dayKey = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
+const slotTax = (price, days) => Math.max(0.5, +(price * TAX_RATE * days).toFixed(2));
+const getSlots = async () => {
+  const s = (await store().get("slots", { type: "json" })) || [];
+  return Array.from({ length: SLOT_N }, (_, i) => s[i] || { n: i });
+};
+const setSlots = (s) => store().setJSON("slots", s);
+const slotLive = (s) => !!(s && s.holder && (s.paidUntil || 0) > Date.now());
+const getPot = async () => (await store().get("pot", { type: "json" })) || { amount: 0, day: dayKey() };
+const setPot = (p) => store().setJSON("pot", p);
+const addPot = async (x) => { const p = await getPot(); p.amount = +(p.amount + x).toFixed(6); await setPot(p); };
+const addDisc = (p, a) => { if (a && a !== p.addr) { p.disc = p.disc || []; if (!p.disc.includes(a) && p.disc.length < 5) p.disc.push(a); } };
+const ghScore = (p) => p.likes.length + 3 * p.tips + 1.5 * (p.assist || 0);
+
+async function payoutXRP(dest, xrp) {
+  const seed = process.env.PLATFORM_WALLET_SEED;
+  if (!seed) return { queued: true };
+  const xrpl = await import("xrpl");
+  const client = new xrpl.Client(process.env.XRPL_WSS || "wss://xrplcluster.com");
+  try {
+    await client.connect();
+    const wallet = xrpl.Wallet.fromSeed(seed);
+    const tx = await client.submitAndWait(
+      { TransactionType: "Payment", Account: wallet.address, Destination: dest, Amount: String(Math.round(xrp * 1e6)) },
+      { autofill: true, wallet }
+    );
+    return { txid: tx.result.hash };
+  } finally { try { await client.disconnect(); } catch {} }
+}
+
+/* Golden Hour: settle lazily on the first request of a new UTC day. Pot rolls over if the day had no qualifying post. */
+async function settleGH() {
+  const pot = await getPot();
+  const today = dayKey();
+  if (pot.day === today) return pot;
+  const prevDay = pot.day;
+  if (await store().get(`ghdone/${prevDay}`)) { pot.day = today; await setPot(pot); return pot; }
+  await store().set(`ghdone/${prevDay}`, "1"); // idempotency marker first
+  const posts = await getPosts();
+  const start = Date.parse(prevDay + "T00:00:00Z"), end = start + 86400e3;
+  const treasury = process.env.PLATFORM_WALLET;
+  const cands = posts.filter((p) => p.ts >= start && p.ts < end && p.addr !== treasury && ghScore(p) > 0);
+  if (cands.length && pot.amount >= 0.01) {
+    const win = cands.sort((a, b) => ghScore(b) - ghScore(a))[0];
+    const amount = +pot.amount.toFixed(2);
+    let pay = {};
+    try { pay = await payoutXRP(win.addr, amount); } catch (e) { pay = { failed: String(e.message || e) }; }
+    const profs = await getProfiles();
+    pot.last = { day: prevDay, addr: win.addr, name: (profs[win.addr] || {}).name || null, xrp: amount, postId: win.id, ...pay };
+    const log = (await store().get("ghlog", { type: "json" })) || [];
+    log.push(pot.last);
+    await store().setJSON("ghlog", log.slice(-365));
+    pot.amount = 0;
+  }
+  pot.day = today;
+  await setPot(pot);
+  return pot;
+}
+
 export default async (req) => {
   const url = new URL(req.url);
   const path = url.pathname.replace(/^\/api\/?/, "");
@@ -68,19 +129,36 @@ export default async (req) => {
   try {
     /* ---------- feed ---------- */
     if (req.method === "GET" && path === "feed") {
-      const [posts, followers, following, profiles] = await Promise.all([getPosts(), getMap("followers"), getMap("following"), getProfiles()]);
+      const [posts, followers, following, profiles, replMap, slots, pot] = await Promise.all([
+        getPosts(), getMap("followers"), getMap("following"), getProfiles(), getMap("replies"), getSlots(), settleGH(),
+      ]);
       const mySubs = (me && following[me]) || [];
+      const nameOf = (a) => (profiles[a] || {}).name || null;
       return j({
         me,
         demo: !hasXumm(),
         posts: posts.map((p) => ({
-          id: p.id, addr: p.addr, name: (profiles[p.addr] || {}).name || null, text: p.text, ts: p.ts, hideTips: !!p.hideTips,
+          id: p.id, addr: p.addr, name: nameOf(p.addr), text: p.text, ts: p.ts, hideTips: !!p.hideTips,
           likes: p.likes.length, liked: !!(me && p.likes.includes(me)),
-          tips: p.tips, followers: (followers[p.addr] || []).length,
+          tips: p.tips, assist: p.assist || 0, followers: (followers[p.addr] || []).length,
           subscribed: mySubs.includes(p.addr),
           promoted: (p.promotedUntil || 0) > Date.now(),
           promoBid: p.promoBid || 0,
+          replies: (replMap[p.id] || []).length,
+          disc: (p.disc || []).map((a) => ({ addr: a, name: nameOf(a) })),
         })),
+        slots: slots.map((s) => {
+          const live = slotLive(s);
+          const post = live && posts.find((p) => p.id === s.postId);
+          return {
+            n: s.n, live,
+            holder: live ? s.holder : null, name: live ? nameOf(s.holder) : null,
+            price: live ? s.price : null, paidUntil: live ? s.paidUntil : 0,
+            text: live ? (post ? post.text : s.text || "") : null, postId: live ? s.postId : null,
+            mine: !!(live && me === s.holder),
+          };
+        }),
+        gh: { pot: +pot.amount.toFixed(2), day: pot.day, last: pot.last || null },
       });
     }
 
@@ -143,6 +221,7 @@ export default async (req) => {
         const posts = await getPosts();
         posts.push({ id: crypto.randomUUID(), addr: pending.by, text: pending.text, ts: Date.now(), likes: [], tips: 0, hideTips: !!pending.hideTips });
         await setPosts(posts);
+        await addPot(0.1);
         await store().set(`postdone/${uuid}`, "1");
       }
       return j({ posted: true });
@@ -203,6 +282,7 @@ export default async (req) => {
       if (!p) return j({ error: "not found" }, 404);
       const i = p.likes.indexOf(me);
       i > -1 ? p.likes.splice(i, 1) : p.likes.push(me);
+      if (i === -1) addDisc(p, me);
       await setPosts(posts);
       return j({ ok: true, likes: p.likes.length, liked: i === -1 });
     }
@@ -267,7 +347,7 @@ export default async (req) => {
         const posts = await getPosts();
         const post = posts.find((x) => x.id === pending.postId);
         if (post) {
-          post.tips += pending.xrp; await setPosts(posts);
+          post.tips += pending.xrp; addDisc(post, pending.by); await setPosts(posts);
           const log = (await store().get("tiplog", { type: "json" })) || [];
           log.push({ addr: post.addr, xrp: pending.xrp, ts: Date.now() });
           await store().setJSON("tiplog", log.slice(-5000));
@@ -295,7 +375,7 @@ export default async (req) => {
       if (!addr) return j({ error: "addr required" }, 400);
       const [posts, followers, profs, following] = await Promise.all([getPosts(), getMap("followers"), getProfiles(), getMap("following")]);
       const mine = posts.filter((p) => p.addr === addr).sort((x, y) => y.ts - x.ts);
-      const sc = (p) => (p.likes.length + 3 * p.tips) / Math.pow((Date.now() - p.ts) / 3600e3 + 2, 1.3);
+      const sc = (p) => (p.likes.length + 3 * p.tips + 1.5 * (p.assist || 0)) / Math.pow((Date.now() - p.ts) / 3600e3 + 2, 1.3);
       const ranked = [...posts].sort((x, y) => sc(y) - sc(x));
       const best = mine.length ? Math.min(...mine.map((p) => ranked.findIndex((x) => x.id === p.id) + 1)) : 0;
       const showTips = (p) => !p.hideTips || me === addr;
@@ -340,6 +420,179 @@ export default async (req) => {
       if (p.addr !== me && (await store().get(`og/${postId}`))) return j({ ok: true, skipped: true });
       await store().set(`og/${postId}`, b64);
       return j({ ok: true });
+    }
+
+    /* ---------- replies (free; tips on replies add 'assist' weight to the parent post) ---------- */
+    if (req.method === "GET" && path === "replies") {
+      const postId = url.searchParams.get("postId");
+      const [replMap, profiles] = await Promise.all([getMap("replies"), getProfiles()]);
+      return j({
+        replies: (replMap[postId] || []).map((r) => ({
+          id: r.id, addr: r.addr, name: (profiles[r.addr] || {}).name || null, text: r.text, ts: r.ts, tips: r.tips || 0,
+        })),
+      });
+    }
+    if (req.method === "POST" && path === "reply") {
+      if (!me) return j({ error: "sign in first" }, 401);
+      const { postId, text } = await req.json();
+      const t = String(text || "").trim().slice(0, MAX_REPLY);
+      if (t.length < 2) return j({ error: "reply too short" }, 400);
+      const posts = await getPosts();
+      if (!posts.find((x) => x.id === postId)) return j({ error: "not found" }, 404);
+      const replMap = await getMap("replies");
+      const list = (replMap[postId] = replMap[postId] || []);
+      const lastMine = [...list].reverse().find((r) => r.addr === me);
+      if (lastMine && Date.now() - lastMine.ts < 15e3) return j({ error: "one reply per 15s" }, 429);
+      const rep = { id: crypto.randomUUID(), addr: me, text: t, ts: Date.now(), tips: 0 };
+      list.push(rep);
+      await setMap("replies", replMap);
+      return j({ ok: true, count: list.length });
+    }
+
+    /* ---------- tip a reply (non-custodial to the replier; parent post earns 'assist' ranking weight) ---------- */
+    if (req.method === "POST" && path === "tipreply") {
+      if (!me) return j({ error: "sign in first" }, 401);
+      const { postId, replyId, amount } = await req.json();
+      const xrp = Math.min(Math.max(Number(amount) || 0, 0.1), 1000);
+      const replMap = await getMap("replies");
+      const r = (replMap[postId] || []).find((x) => x.id === replyId);
+      if (!r) return j({ error: "not found" }, 404);
+      if (r.addr === me) return j({ error: "can't tip yourself" }, 400);
+      if (!hasXumm()) {
+        r.tips = (r.tips || 0) + xrp;
+        const posts = await getPosts();
+        const post = posts.find((x) => x.id === postId);
+        if (post) { post.assist = (post.assist || 0) + xrp; await setPosts(posts); }
+        await setMap("replies", replMap);
+        return j({ demo: true, credited: true });
+      }
+      const pay = await xumm("payload", "POST", {
+        txjson: { TransactionType: "Payment", Destination: r.addr, Amount: String(Math.round(xrp * 1e6)) },
+        options: { expire: 5, submit: true },
+        custom_meta: { instruction: `Tip ${xrp} XRP for a reply on One Board` },
+      });
+      await store().setJSON(`pendingtipr/${pay.uuid}`, { postId, replyId, xrp, by: me });
+      return j({ uuid: pay.uuid, qr: pay.refs.qr_png, deeplink: pay.next.always });
+    }
+    if (req.method === "GET" && path === "tipreply") {
+      const uuid = url.searchParams.get("uuid");
+      const pending = await store().get(`pendingtipr/${uuid}`, { type: "json" });
+      if (!pending) return j({ error: "unknown tip" }, 404);
+      const p = await xumm(`payload/${uuid}`);
+      if (p.meta.expired) return j({ expired: true });
+      if (!p.meta.signed) return j({ pending: true });
+      if (p.response.dispatched_result !== "tesSUCCESS") return j({ failed: true, result: p.response.dispatched_result });
+      if (!(await store().get(`tiprdone/${uuid}`))) {
+        const replMap = await getMap("replies");
+        const r = (replMap[pending.postId] || []).find((x) => x.id === pending.replyId);
+        if (r) {
+          r.tips = (r.tips || 0) + pending.xrp;
+          await setMap("replies", replMap);
+          const posts = await getPosts();
+          const post = posts.find((x) => x.id === pending.postId);
+          if (post) { post.assist = (post.assist || 0) + pending.xrp; await setPosts(posts); }
+          const log = (await store().get("tiplog", { type: "json" })) || [];
+          log.push({ addr: r.addr, xrp: pending.xrp, ts: Date.now() });
+          await store().setJSON("tiplog", log.slice(-5000));
+        }
+        await store().set(`tiprdone/${uuid}`, "1");
+      }
+      return j({ credited: true, txid: p.response.txid });
+    }
+
+    /* ---------- The Ten: Harberger slots ----------
+       claim  : vacant slot -> pay tax (3%/day of your self-assessed price) to the treasury
+       buy    : occupied slot -> pay the holder their own price, wallet to wallet; set your new price
+       extend : holder prepays more tax days
+       All taxes fund the Golden Hour pot. */
+    if (req.method === "POST" && (path === "slotclaim" || path === "slotbuy" || path === "slotextend")) {
+      if (!me) return j({ error: "sign in first" }, 401);
+      const body = await req.json();
+      const n = Number(body.n);
+      if (!(n >= 0 && n < SLOT_N)) return j({ error: "bad slot" }, 400);
+      const slots = await getSlots();
+      const s = slots[n];
+      const live = slotLive(s);
+      const treasury = process.env.PLATFORM_WALLET;
+      const posts = await getPosts();
+
+      const price = Math.min(Math.max(Number(body.price) || 0, MIN_PRICE), MAX_PRICE);
+      const days = Math.min(Math.max(Math.round(Number(body.days) || 0), 1), 30);
+
+      let kind = path.replace("slot", ""), pend, dest, xrp, note;
+      if (kind === "claim") {
+        if (live) return j({ error: "slot is taken — buy it out instead" }, 409);
+        const post = posts.find((x) => x.id === body.postId);
+        if (!post || post.addr !== me) return j({ error: "feature one of your own posts" }, 400);
+        xrp = slotTax(price, days); dest = treasury;
+        pend = { kind, n, by: me, postId: post.id, text: post.text, price, days, tax: xrp };
+        note = `Claim slot #${n + 1} on One Board — ${xrp} XRP tax (${days}d at your ${price} XRP price)`;
+      } else if (kind === "buy") {
+        if (!live) return j({ error: "slot is open — claim it instead" }, 409);
+        if (s.holder === me) return j({ error: "already yours — extend or re-price" }, 400);
+        const post = posts.find((x) => x.id === body.postId);
+        if (!post || post.addr !== me) return j({ error: "feature one of your own posts" }, 400);
+        xrp = s.price; dest = s.holder;
+        pend = { kind, n, by: me, postId: post.id, text: post.text, price, prevHolder: s.holder, pay: xrp };
+        note = `Buy slot #${n + 1} on One Board — ${xrp} XRP straight to the current holder`;
+      } else {
+        if (!live || s.holder !== me) return j({ error: "not your slot" }, 403);
+        xrp = slotTax(s.price, days); dest = treasury;
+        pend = { kind, n, by: me, days, tax: xrp };
+        note = `Extend slot #${n + 1} on One Board — ${xrp} XRP tax for ${days} more days`;
+      }
+
+      const applySlot = async () => {
+        const cur = await getSlots();
+        const c = cur[n];
+        if (pend.kind === "claim") {
+          cur[n] = { n, holder: pend.by, price: pend.price, postId: pend.postId, text: pend.text, since: Date.now(), paidUntil: Date.now() + pend.days * 864e5 };
+          await addPot(pend.tax);
+        } else if (pend.kind === "buy") {
+          cur[n] = { n, holder: pend.by, price: pend.price, postId: pend.postId, text: pend.text, since: Date.now(), paidUntil: Math.max(c.paidUntil || 0, Date.now() + 864e5) };
+        } else {
+          c.paidUntil = Math.max(c.paidUntil || 0, Date.now()) + pend.days * 864e5;
+          await addPot(pend.tax);
+        }
+        await setSlots(cur);
+      };
+
+      if (!hasXumm() || !treasury || (dest === treasury && me === treasury)) {
+        await applySlot();
+        return j({ done: true });
+      }
+      const pay = await xumm("payload", "POST", {
+        txjson: { TransactionType: "Payment", Destination: dest, Amount: String(Math.round(xrp * 1e6)) },
+        options: { expire: 5, submit: true },
+        custom_meta: { instruction: note },
+      });
+      await store().setJSON(`pendingslot/${pay.uuid}`, pend);
+      return j({ uuid: pay.uuid, qr: pay.refs.qr_png, deeplink: pay.next.always });
+    }
+    if (req.method === "GET" && path === "slot") {
+      const uuid = url.searchParams.get("uuid");
+      const pend = await store().get(`pendingslot/${uuid}`, { type: "json" });
+      if (!pend) return j({ error: "unknown slot action" }, 404);
+      const p = await xumm(`payload/${uuid}`);
+      if (p.meta.expired) return j({ expired: true });
+      if (!p.meta.signed) return j({ pending: true });
+      if (p.response.dispatched_result !== "tesSUCCESS") return j({ failed: true, result: p.response.dispatched_result });
+      if (!(await store().get(`slotdone/${uuid}`))) {
+        await store().set(`slotdone/${uuid}`, "1");
+        const cur = await getSlots();
+        const c = cur[pend.n];
+        if (pend.kind === "claim") {
+          cur[pend.n] = { n: pend.n, holder: pend.by, price: pend.price, postId: pend.postId, text: pend.text, since: Date.now(), paidUntil: Date.now() + pend.days * 864e5 };
+          await setSlots(cur); await addPot(pend.tax);
+        } else if (pend.kind === "buy") {
+          cur[pend.n] = { n: pend.n, holder: pend.by, price: pend.price, postId: pend.postId, text: pend.text, since: Date.now(), paidUntil: Math.max((c && c.paidUntil) || 0, Date.now() + 864e5) };
+          await setSlots(cur);
+        } else if (c) {
+          c.paidUntil = Math.max(c.paidUntil || 0, Date.now()) + pend.days * 864e5;
+          await setSlots(cur); await addPot(pend.tax);
+        }
+      }
+      return j({ done: true });
     }
 
     return j({ error: "not found" }, 404);
