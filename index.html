@@ -667,10 +667,11 @@ async function shareCard(id,rankLabel){
   const blob=await new Promise(r=>c.toBlob(r,'image/png'));
   const file=new File([blob],'one-board-post.png',{type:'image/png'});
   if(navigator.canShare&&navigator.canShare({files:[file]})){
-    try{await navigator.share({files:[file],text:'Live on One Board — one-board.xyz'});return}catch(e){}
+    try{await navigator.share({files:[file],text:'Ranked '+rankLabel.replace('&mdash;','—')+' on One Board.',url:'https://one-board.xyz/?post='+encodeURIComponent(id)});return}catch(e){}
   }
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='one-board-post.png';a.click();
-  window.open('https://twitter.com/intent/tweet?text='+encodeURIComponent('Live on One Board')+'&url=https%3A%2F%2Fone-board.xyz','_blank','noopener');
+  const shareUrl='https://one-board.xyz/?post='+encodeURIComponent(id);
+  window.open('https://twitter.com/intent/tweet?text='+encodeURIComponent('Ranked '+rankLabel.replace('&mdash;','—')+' on One Board — the crypto community board. Attach the card 👇')+'&url='+encodeURIComponent(shareUrl),'_blank','noopener');
   toast('Card downloaded · attach it to your post');
 }
 
