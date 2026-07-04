@@ -666,8 +666,8 @@ async function shareCard(id,rankLabel){
   x.fillText(line,60,y);
   x.fillStyle='#8fa3bb';x.font='500 24px "JetBrains Mono",monospace';
   x.fillText((p.name||short(p.addr))+' · '+fmt(p.likes)+' likes · '+(p.hideTips?'tips private':fmt(p.tips)+' XRP tipped'),60,600);
-  // upload the rendered card so the shared LINK renders it as one rich preview (author only)
-  if(S.me&&p.addr===S.me){try{await api('ogimage',{postId:id,dataUrl:c.toDataURL('image/png')})}catch(e){}}
+  // upload the rendered card so the shared LINK renders it as one rich preview
+  if(S.me){try{await api('ogimage',{postId:id,dataUrl:c.toDataURL('image/png')})}catch(e){}}
   const shareUrl=location.origin+'/p/'+encodeURIComponent(id);
   const caption='Ranked '+rankLabel.replace('&mdash;','—')+' on One Board — the crypto community board on XRPL.';
   // share the link ONLY (it carries its own card) — never attach the image too, or X shows two
