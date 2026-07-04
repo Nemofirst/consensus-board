@@ -337,7 +337,7 @@ export default async (req) => {
       const posts = await getPosts();
       const p = posts.find((x) => x.id === postId);
       if (!p) return j({ error: "not found" }, 404);
-      if (p.addr !== me) return j({ error: "not your post" }, 403);
+      if (p.addr !== me && (await store().get(`og/${postId}`))) return j({ ok: true, skipped: true });
       await store().set(`og/${postId}`, b64);
       return j({ ok: true });
     }
