@@ -46,6 +46,12 @@ const getPosts = async () => (await store().get("posts", { type: "json" })) || [
 const setPosts = (p) => store().setJSON("posts", p);
 const getMap = async (k) => (await store().get(k, { type: "json" })) || {};
 const setMap = (k, v) => store().setJSON(k, v);
+const getProfiles = async () => (await store().get("profiles", { type: "json" })) || {};
+const setProfiles = (v) => store().setJSON("profiles", v);
+const recordJoin = async (a) => {
+  const profs = await getProfiles();
+  if (!profs[a]) { profs[a] = { joined: Date.now() }; await setProfiles(profs); }
+};
 
 const demoAddr = () => {
   const chars = "rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz";
@@ -62,13 +68,13 @@ export default async (req) => {
   try {
     /* ---------- feed ---------- */
     if (req.method === "GET" && path === "feed") {
-      const [posts, followers, following] = await Promise.all([getPosts(), getMap("followers"), getMap("following")]);
+      const [posts, followers, following, profiles] = await Promise.all([getPosts(), getMap("followers"), getMap("following"), getProfiles()]);
       const mySubs = (me && following[me]) || [];
       return j({
         me,
         demo: !hasXumm(),
         posts: posts.map((p) => ({
-          id: p.id, addr: p.addr, text: p.text, ts: p.ts, hideTips: !!p.hideTips,
+          id: p.id, addr: p.addr, name: (profiles[p.addr] || {}).name || null, text: p.text, ts: p.ts, hideTips: !!p.hideTips,
           likes: p.likes.length, liked: !!(me && p.likes.includes(me)),
           tips: p.tips, followers: (followers[p.addr] || []).length,
           subscribed: mySubs.includes(p.addr),
@@ -82,6 +88,7 @@ export default async (req) => {
     if (req.method === "POST" && path === "signin") {
       if (!hasXumm()) {
         const a = demoAddr();
+        await recordJoin(a);
         return j({ demo: true, account: a }, 200, setSess(a));
       }
       const p = await xumm("payload", "POST", {
@@ -96,6 +103,7 @@ export default async (req) => {
       if (p.meta.expired) return j({ expired: true });
       if (!p.meta.signed) return j({ pending: true });
       const a = p.response.account;
+      await recordJoin(a);
       return j({ account: a }, 200, setSess(a));
     }
     if (req.method === "POST" && path === "logout") return j({ ok: true }, 200, clearSess);
@@ -258,10 +266,65 @@ export default async (req) => {
       if (!done) {
         const posts = await getPosts();
         const post = posts.find((x) => x.id === pending.postId);
-        if (post) { post.tips += pending.xrp; await setPosts(posts); }
+        if (post) {
+          post.tips += pending.xrp; await setPosts(posts);
+          const log = (await store().get("tiplog", { type: "json" })) || [];
+          log.push({ addr: post.addr, xrp: pending.xrp, ts: Date.now() });
+          await store().setJSON("tiplog", log.slice(-5000));
+        }
         await store().set(`tipdone/${uuid}`, "1");
       }
       return j({ credited: true, txid: p.response.txid });
+    }
+
+    /* ---------- profiles (display name + public stats) ---------- */
+    if (req.method === "POST" && path === "profile") {
+      if (!me) return j({ error: "sign in first" }, 401);
+      const { name } = await req.json();
+      const n = String(name || "").trim();
+      if (!/^[a-zA-Z0-9_.-]{3,20}$/.test(n)) return j({ error: "3-20 chars: letters, numbers, . _ -" }, 400);
+      const profs = await getProfiles();
+      const taken = Object.entries(profs).find(([ad, v]) => ad !== me && (v.name || "").toLowerCase() === n.toLowerCase());
+      if (taken) return j({ error: "that name is taken" }, 409);
+      profs[me] = { ...(profs[me] || { joined: Date.now() }), name: n };
+      await setProfiles(profs);
+      return j({ ok: true, name: n });
+    }
+    if (req.method === "GET" && path === "profile") {
+      const addr = url.searchParams.get("addr");
+      if (!addr) return j({ error: "addr required" }, 400);
+      const [posts, followers, profs, following] = await Promise.all([getPosts(), getMap("followers"), getProfiles(), getMap("following")]);
+      const mine = posts.filter((p) => p.addr === addr).sort((x, y) => y.ts - x.ts);
+      const sc = (p) => (p.likes.length + 3 * p.tips) / Math.pow((Date.now() - p.ts) / 3600e3 + 2, 1.3);
+      const ranked = [...posts].sort((x, y) => sc(y) - sc(x));
+      const best = mine.length ? Math.min(...mine.map((p) => ranked.findIndex((x) => x.id === p.id) + 1)) : 0;
+      const showTips = (p) => !p.hideTips || me === addr;
+      return j({
+        addr, name: (profs[addr] || {}).name || null, joined: (profs[addr] || {}).joined || null,
+        followers: (followers[addr] || []).length,
+        subscribed: !!(me && (following[me] || []).includes(addr)),
+        postCount: mine.length,
+        totalTips: mine.reduce((s, p) => s + (showTips(p) ? p.tips : 0), 0),
+        totalLikes: mine.reduce((s, p) => s + p.likes.length, 0),
+        bestRank: best,
+        posts: mine.slice(0, 20).map((p) => ({ id: p.id, text: p.text, ts: p.ts, likes: p.likes.length, tips: showTips(p) ? p.tips : null })),
+      });
+    }
+
+    /* ---------- earnings leaderboard ---------- */
+    if (req.method === "GET" && path === "leaders") {
+      const [posts, profs, log] = await Promise.all([
+        getPosts(), getProfiles(),
+        store().get("tiplog", { type: "json" }).then((x) => x || []),
+      ]);
+      const cutoff = Date.now() - 7 * 24 * 3600e3;
+      const week = {};
+      for (const e of log) if (e.ts > cutoff) week[e.addr] = (week[e.addr] || 0) + e.xrp;
+      const all = {};
+      for (const p of posts) if (!p.hideTips && p.tips) all[p.addr] = (all[p.addr] || 0) + p.tips;
+      const top = (m) => Object.entries(m).sort((x, y) => y[1] - x[1]).slice(0, 5)
+        .map(([ad, xrp]) => ({ addr: ad, xrp, name: (profs[ad] || {}).name || null }));
+      return j({ week: top(week), all: top(all) });
     }
 
     return j({ error: "not found" }, 404);
