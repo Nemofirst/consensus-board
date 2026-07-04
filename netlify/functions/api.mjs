@@ -327,6 +327,21 @@ export default async (req) => {
       return j({ week: top(week), all: top(all) });
     }
 
+    /* ---------- store per-post OG image (client canvas PNG; author only) ---------- */
+    if (req.method === "POST" && path === "ogimage") {
+      if (!me) return j({ error: "sign in first" }, 401);
+      const { postId, dataUrl } = await req.json();
+      if (!postId || typeof dataUrl !== "string") return j({ error: "bad request" }, 400);
+      const b64 = dataUrl.replace(/^data:image\/png;base64,/, "");
+      if (b64.length > 4_000_000) return j({ error: "too large" }, 413);
+      const posts = await getPosts();
+      const p = posts.find((x) => x.id === postId);
+      if (!p) return j({ error: "not found" }, 404);
+      if (p.addr !== me) return j({ error: "not your post" }, 403);
+      await store().set(`og/${postId}`, b64);
+      return j({ ok: true });
+    }
+
     return j({ error: "not found" }, 404);
   } catch (e) {
     return j({ error: String(e.message || e) }, 500);
