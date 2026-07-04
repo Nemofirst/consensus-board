@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@netlify/blobs": "^8.1.0"
+    "@netlify/blobs": "^8.1.0",
+    "esbuild": "^0.28.1",
+    "xrpl": "^4.4.0"
   }
 }

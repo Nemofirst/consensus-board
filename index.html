@@ -177,6 +177,36 @@ textarea::placeholder{color:var(--txt3)}
 #toast .mono{color:var(--acc)}
 footer{border-top:1px solid var(--line);padding:28px clamp(16px,4vw,40px);display:flex;gap:16px;align-items:center;font-size:12px;color:var(--txt3);max-width:1160px;margin:0 auto;flex-wrap:wrap}
 .empty{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);text-align:center;color:var(--txt3);font-size:13px;padding:40px 20px;line-height:1.6}
+
+/* --- The Ten (Harberger slots) --- */
+.slots-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.gh-chip{font-size:11px;color:var(--gold);border:1px solid rgba(240,198,116,.35);background:rgba(240,198,116,.08);padding:3px 9px;border-radius:99px;white-space:nowrap}
+.slots{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.slot{flex:0 0 212px;background:var(--bg2);border:1px solid var(--line2);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:7px;min-height:128px}
+.slot.mine{border-color:var(--acc-line)}
+.slot.vac{align-items:center;justify-content:center;border-style:dashed;color:var(--txt3);gap:10px}
+.slot .sn{font-size:10px;color:var(--txt3)}
+.slot .sv{font-size:13px;letter-spacing:.14em;color:var(--txt3)}
+.slot .st{font-size:12px;color:var(--txt);line-height:1.35;flex:1;overflow:hidden}
+.slot .sh{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt2)}
+.slot-btn{font-size:11px;padding:7px 10px;background:var(--acc-dim);border:1px solid var(--acc-line);color:var(--acc);border-radius:8px;cursor:pointer;font-family:inherit}
+.slot-btn:hover{background:rgba(46,230,200,.22)}
+/* --- Golden Hour --- */
+.gh-pot{font-size:28px;color:var(--gold)}
+/* --- replies --- */
+.replies{border-top:1px dashed var(--line);margin-top:10px;padding-top:10px;display:flex;flex-direction:column;gap:9px}
+.reply{display:flex;gap:8px;align-items:flex-start;font-size:12.5px}
+.reply .rb{flex:1;min-width:0}
+.reply .rm{display:flex;gap:8px;font-size:10.5px;color:var(--txt3);margin-bottom:2px;align-items:center;flex-wrap:wrap}
+.reply p{color:var(--txt2);line-height:1.4;overflow-wrap:anywhere}
+.rcompose{display:flex;gap:8px}
+.rcompose input{flex:1;background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--txt);font-size:12.5px;padding:9px 10px;outline:none}
+.rload{font-size:12px;color:var(--txt3)}
+.disc{font-size:10.5px;color:var(--gold)}
+.assist{font-size:10.5px;color:var(--acc)}
+.slot-l{display:block;font-size:11px;color:var(--txt2);margin:12px 0 6px}
+#slotModal input,#slotModal select{width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--txt);font-size:13px;padding:11px 12px;outline:none;box-sizing:border-box}
+.slot-quote{font-size:12px;color:var(--gold);margin:12px 0}
 </style>
 </head>
 <body>
@@ -243,6 +273,15 @@ footer{border-top:1px solid var(--line);padding:28px clamp(16px,4vw,40px);displa
     </div>
   </div>
 
+  <div class="card" id="slotsWrap" style="display:none;margin-bottom:18px">
+    <div class="slots-head">
+      <h3>The Ten &mdash; every slot always for sale</h3>
+      <span class="gh-chip mono" title="All slot taxes fund the daily Golden Hour pot">pot <b id="ghPotChip">0 XRP</b></span>
+    </div>
+    <p class="sub" style="margin:4px 0 12px">Harberger rules: the holder names their own price, pays 3%/day of it in tax to the Golden Hour pot, and <b style="color:var(--txt)">anyone can buy them out instantly at that price</b> &mdash; paid wallet to wallet. Overprice and the tax bleeds you; underprice and you get sniped.</p>
+    <div class="slots" id="slotsRow"></div>
+  </div>
+
   <div class="grid">
     <div id="feed"><div class="empty">Loading the board…</div></div>
 
@@ -265,12 +304,21 @@ footer{border-top:1px solid var(--line);padding:28px clamp(16px,4vw,40px);displa
           <li><span class="n">02</span><span>Post to the one feed everyone sees. Likes are one per account; tips count 3× in ranking because money is a harder signal to fake than a click.</span></li>
           <li><span class="n">03</span><span>Get tipped, get paid instantly. Tips settle straight to your wallet on the XRP Ledger — we never touch them, and we never take a cut.</span></li>
           <li><span class="n">04</span><span>Want reach? Bid for a promoted slot. Highest bid sits on top for 24 hours — clearly labeled, and never mixed into the organic ranking.</span></li>
+          <li><span class="n">05</span><span>Or own one of The Ten — featured slots run on Harberger taxes: name your price, pay 3%/day into the Golden Hour pot, and anyone can buy you out at your price, wallet to wallet. The day's best post wins the whole pot at the epoch reset.</span></li>
         </ul>
       </div>
 
       <div class="card" id="leadersCard" style="display:none">
         <h3>Top earners</h3>
         <div id="leadersList"></div>
+      </div>
+
+      <div class="card" id="ghCard">
+        <h3>Golden Hour</h3>
+        <div class="gh-pot mono"><b id="ghPot">0</b> XRP</div>
+        <p class="sub" style="margin:6px 0 10px">Slot taxes and posting fees fill the pot. When the epoch resets, the day's top organic post takes it all &mdash; paid straight to the author's wallet.</p>
+        <div class="lrow"><span>Settles in</span><b id="ghCount">&mdash;</b></div>
+        <div class="lrow" id="ghLastRow" style="display:none"><span>Last winner</span><b id="ghLast"></b></div>
       </div>
 
       <div class="card ledgerbox">
@@ -374,6 +422,29 @@ footer{border-top:1px solid var(--line);padding:28px clamp(16px,4vw,40px);displa
   </div>
 </div>
 
+<!-- slot modal (The Ten) -->
+<div class="overlay" id="slotModal">
+  <div class="sheet">
+    <button class="close-x" data-close>&times;</button>
+    <h4 id="slotTitle"></h4>
+    <p class="sub" id="slotSub"></p>
+    <div id="slotPostWrap">
+      <label class="slot-l">Feature which of your posts?</label>
+      <select id="slotPost" class="mono"></select>
+    </div>
+    <div id="slotPriceWrap">
+      <label class="slot-l">Your self-assessed price &mdash; anyone can buy the slot from you at exactly this</label>
+      <input type="number" id="slotPrice" min="5" max="10000" step="1" placeholder="e.g. 50 XRP" class="mono">
+    </div>
+    <div id="slotDaysWrap">
+      <label class="slot-l">Prepay tax for how many days? (3% of your price per day, to the Golden Hour pot)</label>
+      <input type="number" id="slotDays" min="1" max="30" step="1" value="7" class="mono">
+    </div>
+    <div class="slot-quote mono" id="slotQuote"></div>
+    <button class="btn btn-acc" id="slotConfirm" style="width:100%">Create payment request</button>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -381,14 +452,14 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const short=a=>a.slice(0,6)+'…'+a.slice(-4);
 const hrs=ts=>(Date.now()-ts)/3600e3;
-const score=p=>(p.likes+3*p.tips)/Math.pow(hrs(p.ts)+2,1.3);
+const score=p=>(p.likes+3*p.tips+1.5*(p.assist||0))/Math.pow(hrs(p.ts)+2,1.3);
 const fmt=n=>n>=1000?(n/1000).toFixed(1).replace('.0','')+'k':''+Math.round(n);
 const ago=ts=>{const h=hrs(ts);if(h<1)return Math.max(1,Math.round(h*60))+'m';if(h<24)return Math.round(h)+'h';return Math.round(h/24)+'d'};
 const hue=a=>{let x=0;for(const c of a)x=(x*31+c.charCodeAt(0))>>>0;return x%360};
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const api=async(path,opts)=>{const r=await fetch('/api/'+path,opts?{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(opts)}:undefined);return r.json()};
 
-let S={me:null,demo:false,posts:[]},tab='today',tipTarget=null,tipAmt=5,promoTarget=null,prevRanks={},booted=false,pollTimer=null;
+let S={me:null,demo:false,posts:[]},tab='today',tipTarget=null,tipAmt=5,tipKind='post',tipParent=null,promoTarget=null,prevRanks={},booted=false,pollTimer=null,slotMode=null,slotN=0;
 
 const likeSVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg>';
 const tipSVG='<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M1.5 2.5h3L8 6l3.5-3.5h3L9.4 8l5.1 5.5h-3L8 10l-3.5 3.5h-3L6.6 8 1.5 2.5Z" fill="currentColor"/></svg>';
@@ -397,7 +468,7 @@ const tipSVG='<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path 
 async function load(){
   try{S=await api('feed')}catch(e){$('#feed').innerHTML='<div class="empty">Could not reach the board. Refresh to retry.</div>';return}
   $('#demoBand').style.display=S.demo?'':'none';
-  renderAuth();render();loadLeaders();
+  renderAuth();render();renderSlots();updateGH();loadLeaders();
 }
 function setAppMode(on){
   document.documentElement.classList.toggle('app-mode',!!on);
@@ -412,7 +483,7 @@ function renderAuth(){
 function render(){
   let posts=[...S.posts];
   if(tab==='subs')posts=posts.filter(p=>p.subscribed||p.addr===S.me);
-  posts.sort(tab==='all'?(a,b)=>(b.likes+3*b.tips)-(a.likes+3*a.tips):(a,b)=>score(b)-score(a));
+  posts.sort(tab==='all'?(a,b)=>(b.likes+3*b.tips+1.5*(b.assist||0))-(a.likes+3*a.tips+1.5*(a.assist||0)):(a,b)=>score(b)-score(a));
   if(tab==='today')posts.sort((a,b)=>((b.promoted?1:0)-(a.promoted?1:0))||((b.promoBid||0)-(a.promoBid||0)));
   const feed=$('#feed');feed.innerHTML='';
   if(!posts.length){
@@ -445,11 +516,15 @@ function render(){
           <button class="act ${p.liked?'liked':''}" data-like="${p.id}">${likeSVG}<span class="mono">${fmt(p.likes)}</span></button>
           <button class="act" data-tip="${p.id}">${tipSVG}Tip</button>
           <button class="act" data-share="${p.id}" data-rank="${isPromo?'★':r}">Share</button>
+          <button class="act" data-rep="${p.id}">Replies${p.replies?` <span class="mono">${fmt(p.replies)}</span>`:''}</button>
           ${p.tips?(p.hideTips?'<span class="badge" title="Author hides tip totals here. Amounts remain public on-ledger.">tips private</span>':`<span class="tipped">${fmt(p.tips)} XRP tipped</span>`):''}
           ${own?`<button class="act" data-priv="${p.id}" title="Amounts remain public on-ledger">${p.hideTips?'Show tips':'Hide tips'}</button>`:''}
           ${own?`<button class="act" data-promo="${p.id}" title="Bid for a labeled 24h promoted slot — highest bids rank highest">${p.promoted?'Raise bid':'Promote'}</button>`:''}
+          ${p.assist?`<span class="assist" title="Tips earned by replies under this post — they lift its ranking 1.5×">+${fmt(p.assist)} XRP via replies</span>`:''}
+          ${p.disc&&p.disc.length?`<span class="disc" title="The first wallets to back this post">early: ${p.disc.map(d=>esc(d.name||short(d.addr))).join(', ')}</span>`:''}
           <span class="score">score <b>${score(p).toFixed(1)}</b></span>
         </div>
+        <div class="replies" id="rep-${p.id}" style="display:none"></div>
       </div>`;
     feed.appendChild(el);
     if(!isPromo)prevRanks[p.id]=r;
@@ -514,9 +589,38 @@ document.addEventListener('click',async e=>{
   const tip=e.target.closest('[data-tip]');
   if(tip){
     if(!S.me)return openConnect();
-    tipTarget=tip.dataset.tip;resetTipModal();$('#tipModal').classList.add('open');
+    tipKind='post';tipParent=null;tipTarget=tip.dataset.tip;resetTipModal();$('#tipModal').classList.add('open');
     return;
   }
+  const rep=e.target.closest('[data-rep]');
+  if(rep){openReplies(rep.dataset.rep);return}
+  const rsend=e.target.closest('[data-repsend]');
+  if(rsend){
+    if(!S.me)return openConnect();
+    const id=rsend.dataset.repsend,inp=$('#ri-'+id);
+    const t=(inp.value||'').trim();
+    if(t.length<2)return toast('Write something first');
+    rsend.disabled=true;
+    const r=await api('reply',{postId:id,text:t});
+    rsend.disabled=false;
+    if(r.error)return toast(r.error);
+    const p=S.posts.find(x=>x.id===id);if(p)p.replies=r.count;
+    await openReplies(id,true);toast('Reply posted');
+    return;
+  }
+  const tipr=e.target.closest('[data-tipr]');
+  if(tipr){
+    if(!S.me)return openConnect();
+    tipKind='reply';tipTarget=tipr.dataset.tipr;tipParent=tipr.dataset.tipp;
+    resetTipModal();$('#tipModal').classList.add('open');
+    return;
+  }
+  const claim=e.target.closest('[data-claimslot]');
+  if(claim){openSlotModal('claim',+claim.dataset.claimslot);return}
+  const buy=e.target.closest('[data-buyslot]');
+  if(buy){openSlotModal('buy',+buy.dataset.buyslot);return}
+  const ext=e.target.closest('[data-extslot]');
+  if(ext){openSlotModal('extend',+ext.dataset.extslot);return}
   if(e.target.closest('[data-close]')){e.target.closest('.overlay').classList.remove('open');stopPoll()}
 });
 document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o){o.classList.remove('open');stopPoll()}}));
@@ -555,7 +659,7 @@ function payFlow(r,title,sub,pollPath,onDone){
   stopPoll();
   pollTimer=setInterval(async()=>{
     const st=await api(pollPath+'?uuid='+r.uuid);
-    if(st.posted||st.promoted){stopPoll();$('#payModal').classList.remove('open');await onDone()}
+    if(st.posted||st.promoted||st.done){stopPoll();$('#payModal').classList.remove('open');await onDone()}
     else if(st.expired){stopPoll();$('#payStatus').textContent='Request expired — close and try again.'}
     else if(st.failed){stopPoll();$('#payStatus').textContent='Payment failed: '+esc(st.result||'unknown')}
   },2500);
@@ -585,10 +689,10 @@ document.querySelectorAll('.amounts button').forEach(b=>b.onclick=()=>{
 });
 $('#tipConfirm').onclick=async()=>{
   const btn=$('#tipConfirm');btn.disabled=true;btn.innerHTML='<span class="spin"></span>Creating request…';
-  const r=await api('tip',{postId:tipTarget,amount:tipAmt});
+  const r=await api(tipKind==='reply'?'tipreply':'tip',tipKind==='reply'?{postId:tipParent,replyId:tipTarget,amount:tipAmt}:{postId:tipTarget,amount:tipAmt});
   btn.disabled=false;btn.textContent='Create payment request';
   if(r.error)return toast(r.error);
-  if(r.demo&&r.credited){$('#tipModal').classList.remove('open');await load();toast(tipAmt+' XRP tipped (demo)');burst();return}
+  if(r.demo&&r.credited){$('#tipModal').classList.remove('open');await load();if(tipKind==='reply')await openReplies(tipParent,true);toast(tipAmt+' XRP tipped (demo)');burst();return}
   $('#tipBody').style.display='none';
   const box=$('#tipQr');box.style.display='';
   box.innerHTML=`<img src="${esc(r.qr)}" alt="Xaman payment QR"><div class="status">Scan with Xaman, or</div>
@@ -596,8 +700,8 @@ $('#tipConfirm').onclick=async()=>{
     <div class="status" id="tipStatus">Waiting for your signature…</div>`;
   stopPoll();
   pollTimer=setInterval(async()=>{
-    const s=await api('tip?uuid='+r.uuid);
-    if(s.credited){stopPoll();$('#tipModal').classList.remove('open');await load();toast(tipAmt+' XRP tipped · settled on-ledger');burst()}
+    const s=await api((tipKind==='reply'?'tipreply':'tip')+'?uuid='+r.uuid);
+    if(s.credited){stopPoll();$('#tipModal').classList.remove('open');await load();if(tipKind==='reply')await openReplies(tipParent,true);toast(tipAmt+' XRP tipped · settled on-ledger');burst()}
     else if(s.expired){stopPoll();$('#tipStatus').textContent='Request expired — close and try again.'}
     else if(s.failed){stopPoll();$('#tipStatus').textContent='Payment failed: '+esc(s.result||'unknown')}
   },2500);
@@ -664,6 +768,8 @@ async function shareCard(id,rankLabel){
   for(const w of words){const t=line?line+' '+w:w;
     if(x.measureText(t).width>1080){x.fillText(line,60,y);y+=54;line=w;if(y>510){line+=' …';break}}else line=t}
   x.fillText(line,60,y);
+  if(p.disc&&p.disc.length){x.fillStyle='#f0c674';x.font='500 20px "JetBrains Mono",monospace';
+    x.fillText(('early backers: '+p.disc.map(d=>d.name||short(d.addr)).join(', ')).slice(0,82),60,556);}
   x.fillStyle='#8fa3bb';x.font='500 24px "JetBrains Mono",monospace';
   x.fillText((p.name||short(p.addr))+' · '+fmt(p.likes)+' likes · '+(p.hideTips?'tips private':fmt(p.tips)+' XRP tipped'),60,600);
   // upload the rendered card so the shared LINK renders it as one rich preview
@@ -696,6 +802,97 @@ $('#bidConfirm').onclick=async()=>{
   if(r.uuid)payFlow(r,'Promote this post','Your '+bid+' XRP bid buys a labeled promoted slot for 24 hours. Highest bids rank highest.','promote',async()=>{await load();toast('Promoted · '+bid+' XRP bid');burst()});
 };
 
+/* ---------------- The Ten (Harberger slots) ---------------- */
+function renderSlots(){
+  const w=$('#slotsWrap');if(!w)return;
+  const s=S.slots||[];
+  if(!s.length){w.style.display='none';return}
+  w.style.display='';
+  $('#ghPotChip').textContent=((S.gh&&S.gh.pot)||0)+' XRP';
+  $('#slotsRow').innerHTML=s.map(sl=>{
+    if(!sl.live)return `<div class="slot vac"><div class="sn mono">SLOT #${sl.n+1}</div><div class="sv">OPEN</div><button class="slot-btn" data-claimslot="${sl.n}">Claim &mdash; set your price</button></div>`;
+    const left=Math.max(0,sl.paidUntil-Date.now());
+    const dl=left>36*36e5?Math.round(left/864e5)+'d':Math.max(1,Math.round(left/36e5))+'h';
+    return `<div class="slot${sl.mine?' mine':''}">
+      <div class="sn mono">#${sl.n+1} · tax paid ${dl}${sl.mine?' · yours':''}</div>
+      <div class="st">${esc((sl.text||'').slice(0,96))}${(sl.text||'').length>96?'…':''}</div>
+      <div class="sh"><span class="avatar" style="width:18px;height:18px;font-size:8px;background:hsl(${hue(sl.holder)} 65% 62%)">${esc((sl.name||sl.holder.slice(1,3)).slice(0,2).toUpperCase())}</span><span data-prof="${esc(sl.holder)}" style="cursor:pointer">${sl.name?esc(sl.name):short(sl.holder)}</span></div>
+      ${sl.mine?`<button class="slot-btn" data-extslot="${sl.n}">Extend tax</button>`:`<button class="slot-btn" data-buyslot="${sl.n}">Buy for ${fmt(sl.price)} XRP</button>`}
+    </div>`;
+  }).join('');
+}
+function updateGH(){
+  if(!S.gh)return;
+  $('#ghPot').textContent=S.gh.pot||0;
+  if(S.gh.last){
+    $('#ghLastRow').style.display='';
+    $('#ghLast').textContent=(S.gh.last.name||short(S.gh.last.addr))+' · '+S.gh.last.xrp+' XRP';
+  }
+}
+function myPosts(){return S.posts.filter(p=>p.addr===S.me)}
+function slotQuote(){
+  const q=$('#slotQuote');
+  const price=Number($('#slotPrice').value)||0,days=Number($('#slotDays').value)||0;
+  if(slotMode==='buy'){
+    const sl=(S.slots||[])[slotN]||{};
+    q.textContent='You pay the holder '+(sl.price||0)+' XRP now · then your tax runs 3%/day of your new price';
+  }else{
+    const tax=Math.max(.5,+(price*.03*days).toFixed(2));
+    q.textContent=(price>=5&&days>=1)?('Tax now: '+tax+' XRP → Golden Hour pot'):'';
+  }
+}
+function openSlotModal(mode,n){
+  if(!S.me)return openConnect();
+  const sl=(S.slots||[])[n]||{};
+  slotMode=mode;slotN=n;
+  const mine=myPosts();
+  if(mode!=='extend'&&!mine.length)return toast('Post something first — slots feature one of your posts');
+  $('#slotPostWrap').style.display=mode==='extend'?'none':'';
+  $('#slotPriceWrap').style.display=mode==='extend'?'none':'';
+  $('#slotDaysWrap').style.display=mode==='buy'?'none':'';
+  $('#slotPost').innerHTML=mine.map(p=>`<option value="${p.id}">${esc(p.text.slice(0,70))}</option>`).join('');
+  $('#slotPrice').value=mode==='buy'?Math.max(5,Math.round((sl.price||5)*1.2)):'';
+  $('#slotDays').value=7;
+  if(mode==='claim'){$('#slotTitle').textContent='Claim slot #'+(n+1);$('#slotSub').textContent='Name your price and prepay the tax. The slot is yours until the tax runs out — or until someone pays your price.'}
+  else if(mode==='buy'){$('#slotTitle').textContent='Buy out slot #'+(n+1);$('#slotSub').textContent='You pay '+(sl.price||0)+' XRP directly to the current holder — wallet to wallet, we touch nothing. Then set your own price; your tax clock starts with 1 day covered.'}
+  else{$('#slotTitle').textContent='Extend slot #'+(n+1);$('#slotSub').textContent='Prepay more tax days at 3%/day of your '+(sl.price||0)+' XRP price. Tax funds the Golden Hour pot.'}
+  slotQuote();
+  $('#slotModal').classList.add('open');
+}
+$('#slotPrice').oninput=slotQuote;$('#slotDays').oninput=slotQuote;
+$('#slotConfirm').onclick=async()=>{
+  const price=Number($('#slotPrice').value)||0;
+  const days=Number($('#slotDays').value)||7;
+  const postId=$('#slotPost').value;
+  if(slotMode!=='extend'&&price<5)return toast('Minimum price is 5 XRP');
+  const btn=$('#slotConfirm');btn.disabled=true;btn.innerHTML='<span class="spin"></span>Creating request…';
+  const r=await api('slot'+slotMode,slotMode==='extend'?{n:slotN,days}:{n:slotN,postId,price,days});
+  btn.disabled=false;btn.textContent='Create payment request';
+  if(r.error)return toast(r.error);
+  $('#slotModal').classList.remove('open');
+  if(r.done){await load();toast(slotMode==='buy'?'Slot bought out':'Slot #'+(slotN+1)+' is yours');burst();return}
+  if(r.uuid)payFlow(r,
+    slotMode==='buy'?'Buy out slot #'+(slotN+1):slotMode==='extend'?'Extend slot #'+(slotN+1):'Claim slot #'+(slotN+1),
+    slotMode==='buy'?'Payment goes straight to the current holder, wallet to wallet.':'Tax payment goes to the treasury and fills the Golden Hour pot.',
+    'slot',async()=>{await load();toast(slotMode==='buy'?'Slot bought out — it\'s yours':'Slot secured');burst()});
+};
+
+/* ---------------- replies ---------------- */
+async function openReplies(id,force){
+  const box=$('#rep-'+id);if(!box)return;
+  if(box.style.display===''&&!force){box.style.display='none';return}
+  box.style.display='';box.innerHTML='<div class="rload">Loading replies…</div>';
+  const d=await api('replies?postId='+encodeURIComponent(id));
+  const rows=(d.replies||[]).map(r=>`<div class="reply">
+    <span class="avatar" style="width:22px;height:22px;font-size:9px;flex:none;background:hsl(${hue(r.addr)} 65% 62%)">${esc((r.name||r.addr.slice(1,3)).slice(0,2).toUpperCase())}</span>
+    <div class="rb"><div class="rm"><span data-prof="${esc(r.addr)}" style="cursor:pointer;color:var(--txt2)">${r.name?esc(r.name):short(r.addr)}</span><span>${ago(r.ts)} ago</span>${r.tips?`<span class="tipped">${fmt(r.tips)} XRP</span>`:''}</div>
+    <p>${esc(r.text)}</p></div>
+    ${S.me&&r.addr===S.me?'':`<button class="act" data-tipr="${r.id}" data-tipp="${id}" title="Tip goes to the replier · the post above earns 1.5× ranking weight">${tipSVG}Tip</button>`}
+  </div>`).join('');
+  box.innerHTML=(rows||'<div class="rload">No replies yet — earn the first one. Tips on replies lift the post above.</div>')+
+    `<div class="rcompose"><input maxlength="280" id="ri-${id}" placeholder="Reply — good replies earn tips of their own"><button class="btn btn-acc" data-repsend="${id}" style="flex:none">Reply</button></div>`;
+}
+
 /* ---------------- toast / ticker / effects ---------------- */
 let toastT;
 function toast(msg,mono){
@@ -720,7 +917,8 @@ setInterval(()=>{
 },250);
 setInterval(()=>{
   const d=new Date(),m=24*60-(d.getUTCHours()*60+d.getUTCMinutes());
-  $('#epoch').textContent=Math.floor(m/60)+'h '+(m%60)+'m';
+  const eT=Math.floor(m/60)+'h '+(m%60)+'m';
+  $('#epoch').textContent=eT;const g=$('#ghCount');if(g)g.textContent=eT;
 },1000);
 (function(){
   if(reduced)return;
@@ -763,7 +961,7 @@ function burst(){
 })();
 
 load();
-setInterval(()=>{if(!document.querySelector('.overlay.open'))load()},30000);
+setInterval(()=>{if(!document.querySelector('.overlay.open')&&![...document.querySelectorAll('.replies')].some(b=>b.style.display!=='none'))load()},30000);
 </script>
 </body>
 </html>
