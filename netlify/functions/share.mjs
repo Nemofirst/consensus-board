@@ -38,7 +38,8 @@ export default async (req) => {
   const text = post ? post.text : "One board for the whole crypto community — ranked by likes and XRP tips.";
   const desc = text.length > 200 ? text.slice(0, 197) + "…" : text;
   const title = post ? `${name} on One Board` : "One Board — the crypto community board on XRPL";
-  const img = `${url.origin}/og/${encodeURIComponent(id)}.png`;
+  const ver = post ? Math.floor((post.tips || 0) * 100 + (post.likes ? post.likes.length : 0) + post.ts / 1000) : 0;
+  const img = `${url.origin}/og/${encodeURIComponent(id)}.png?v=${ver}`;
   const dest = `/?post=${encodeURIComponent(id)}`;
 
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
