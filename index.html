@@ -185,6 +185,7 @@ footer{border-top:1px solid var(--line);padding:28px clamp(16px,4vw,40px);displa
 .slot{flex:0 0 212px;background:var(--bg2);border:1px solid var(--line2);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:7px;min-height:128px}
 .slot.mine{border-color:var(--acc-line)}
 .slot.vac{align-items:center;justify-content:center;border-style:dashed;color:var(--txt3);gap:10px}
+.slot.house{border-style:dashed;border-color:rgba(46,230,200,.25)}
 .slot .sn{font-size:10px;color:var(--txt3)}
 .slot .sv{font-size:13px;letter-spacing:.14em;color:var(--txt3)}
 .slot .st{font-size:12px;color:var(--txt);line-height:1.35;flex:1;overflow:hidden}
@@ -278,7 +279,7 @@ footer{border-top:1px solid var(--line);padding:28px clamp(16px,4vw,40px);displa
       <h3>The Ten &mdash; every slot always for sale</h3>
       <span class="gh-chip mono" title="All slot taxes fund the daily Golden Hour pot">pot <b id="ghPotChip">0 XRP</b></span>
     </div>
-    <p class="sub" style="margin:4px 0 12px">Harberger rules: the holder names their own price, pays 3%/day of it in tax to the Golden Hour pot, and <b style="color:var(--txt)">anyone can buy them out instantly at that price</b> &mdash; paid wallet to wallet. Overprice and the tax bleeds you; underprice and you get sniped.</p>
+    <p class="sub" style="margin:4px 0 12px">Every slot is always owned &mdash; by the house until you take it. Harberger rules: the holder names their own price, pays 3%/day of it in tax (half fills the Golden Hour pot), and <b style="color:var(--txt)">anyone can buy them out instantly at that price</b>. Player-to-player sales settle wallet to wallet. Overprice and the tax bleeds you; underprice and you get sniped.</p>
     <div class="slots" id="slotsRow"></div>
   </div>
 
@@ -304,7 +305,7 @@ footer{border-top:1px solid var(--line);padding:28px clamp(16px,4vw,40px);displa
           <li><span class="n">02</span><span>Post to the one feed everyone sees. Likes are one per account; tips count 3× in ranking because money is a harder signal to fake than a click.</span></li>
           <li><span class="n">03</span><span>Get tipped, get paid instantly. Tips settle straight to your wallet on the XRP Ledger — we never touch them, and we never take a cut.</span></li>
           <li><span class="n">04</span><span>Want reach? Bid for a promoted slot. Highest bid sits on top for 24 hours — clearly labeled, and never mixed into the organic ranking.</span></li>
-          <li><span class="n">05</span><span>Or own one of The Ten — featured slots run on Harberger taxes: name your price, pay 3%/day into the Golden Hour pot, and anyone can buy you out at your price, wallet to wallet. The day's best post wins the whole pot at the epoch reset.</span></li>
+          <li><span class="n">05</span><span>Or own one of The Ten — featured slots run on Harberger taxes: buy a slot at its listed price, name your own, and pay 3%/day tax to hold it. Anyone can buy you out at your price, wallet to wallet. Half of every tax fills the Golden Hour pot; the day's best post wins it all at the epoch reset.</span></li>
         </ul>
       </div>
 
@@ -316,7 +317,7 @@ footer{border-top:1px solid var(--line);padding:28px clamp(16px,4vw,40px);displa
       <div class="card" id="ghCard">
         <h3>Golden Hour</h3>
         <div class="gh-pot mono"><b id="ghPot">0</b> XRP</div>
-        <p class="sub" style="margin:6px 0 10px">Slot taxes and posting fees fill the pot. When the epoch resets, the day's top organic post takes it all &mdash; paid straight to the author's wallet.</p>
+        <p class="sub" style="margin:6px 0 10px">Half of every slot tax and posting fee fills the pot. When the epoch resets, the day's top organic post takes it all &mdash; paid straight to the author's wallet.</p>
         <div class="lrow"><span>Settles in</span><b id="ghCount">&mdash;</b></div>
         <div class="lrow" id="ghLastRow" style="display:none"><span>Last winner</span><b id="ghLast"></b></div>
       </div>
@@ -615,8 +616,6 @@ document.addEventListener('click',async e=>{
     resetTipModal();$('#tipModal').classList.add('open');
     return;
   }
-  const claim=e.target.closest('[data-claimslot]');
-  if(claim){openSlotModal('claim',+claim.dataset.claimslot);return}
   const buy=e.target.closest('[data-buyslot]');
   if(buy){openSlotModal('buy',+buy.dataset.buyslot);return}
   const ext=e.target.closest('[data-extslot]');
@@ -810,7 +809,12 @@ function renderSlots(){
   w.style.display='';
   $('#ghPotChip').textContent=((S.gh&&S.gh.pot)||0)+' XRP';
   $('#slotsRow').innerHTML=s.map(sl=>{
-    if(!sl.live)return `<div class="slot vac"><div class="sn mono">SLOT #${sl.n+1}</div><div class="sv">OPEN</div><button class="slot-btn" data-claimslot="${sl.n}">Claim &mdash; set your price</button></div>`;
+    if(sl.house)return `<div class="slot house">
+      <div class="sn mono">#${sl.n+1} · house slot</div>
+      <div class="st">${esc((sl.text||'').slice(0,96))}</div>
+      <div class="sh"><span class="avatar" style="width:18px;height:18px;font-size:8px;background:var(--acc-dim);color:var(--acc)">OB</span><span>One Board</span></div>
+      ${sl.mine?`<span class="sn mono">yours (house)</span>`:`<button class="slot-btn" data-buyslot="${sl.n}">Buy for ${fmt(sl.price)} XRP</button>`}
+    </div>`;
     const left=Math.max(0,sl.paidUntil-Date.now());
     const dl=left>36*36e5?Math.round(left/864e5)+'d':Math.max(1,Math.round(left/36e5))+'h';
     return `<div class="slot${sl.mine?' mine':''}">
@@ -835,7 +839,7 @@ function slotQuote(){
   const price=Number($('#slotPrice').value)||0,days=Number($('#slotDays').value)||0;
   if(slotMode==='buy'){
     const sl=(S.slots||[])[slotN]||{};
-    q.textContent='You pay the holder '+(sl.price||0)+' XRP now · then your tax runs 3%/day of your new price';
+    q.textContent='You pay '+(sl.price||0)+' XRP now · then your tax runs 3%/day of your new price · half of tax fills the pot';
   }else{
     const tax=Math.max(.5,+(price*.03*days).toFixed(2));
     q.textContent=(price>=5&&days>=1)?('Tax now: '+tax+' XRP → Golden Hour pot'):'';
@@ -849,13 +853,12 @@ function openSlotModal(mode,n){
   if(mode!=='extend'&&!mine.length)return toast('Post something first — slots feature one of your posts');
   $('#slotPostWrap').style.display=mode==='extend'?'none':'';
   $('#slotPriceWrap').style.display=mode==='extend'?'none':'';
-  $('#slotDaysWrap').style.display=mode==='buy'?'none':'';
+  $('#slotDaysWrap').style.display='none';if(mode==='extend')$('#slotDaysWrap').style.display='';
   $('#slotPost').innerHTML=mine.map(p=>`<option value="${p.id}">${esc(p.text.slice(0,70))}</option>`).join('');
-  $('#slotPrice').value=mode==='buy'?Math.max(5,Math.round((sl.price||5)*1.2)):'';
+  $('#slotPrice').value=Math.max(5,Math.round((sl.price||5)*1.2));
   $('#slotDays').value=7;
-  if(mode==='claim'){$('#slotTitle').textContent='Claim slot #'+(n+1);$('#slotSub').textContent='Name your price and prepay the tax. The slot is yours until the tax runs out — or until someone pays your price.'}
-  else if(mode==='buy'){$('#slotTitle').textContent='Buy out slot #'+(n+1);$('#slotSub').textContent='You pay '+(sl.price||0)+' XRP directly to the current holder — wallet to wallet, we touch nothing. Then set your own price; your tax clock starts with 1 day covered.'}
-  else{$('#slotTitle').textContent='Extend slot #'+(n+1);$('#slotSub').textContent='Prepay more tax days at 3%/day of your '+(sl.price||0)+' XRP price. Tax funds the Golden Hour pot.'}
+  if(mode==='buy'){$('#slotTitle').textContent='Buy slot #'+(n+1)+(sl.house?' from the house':'');$('#slotSub').textContent='You pay '+(sl.price||0)+' XRP to '+(sl.house?'One Board':'the current holder — wallet to wallet, we touch nothing')+'. Then set your own price; your tax clock starts with 1 day covered, extend it any time at 3%/day.'}
+  else{$('#slotTitle').textContent='Extend slot #'+(n+1);$('#slotSub').textContent='Prepay more tax days at 3%/day of your '+(sl.price||0)+' XRP price. Half of every tax fills the Golden Hour pot.'}
   slotQuote();
   $('#slotModal').classList.add('open');
 }
@@ -866,15 +869,15 @@ $('#slotConfirm').onclick=async()=>{
   const postId=$('#slotPost').value;
   if(slotMode!=='extend'&&price<5)return toast('Minimum price is 5 XRP');
   const btn=$('#slotConfirm');btn.disabled=true;btn.innerHTML='<span class="spin"></span>Creating request…';
-  const r=await api('slot'+slotMode,slotMode==='extend'?{n:slotN,days}:{n:slotN,postId,price,days});
+  const r=await api('slot'+slotMode,slotMode==='extend'?{n:slotN,days}:{n:slotN,postId,price});
   btn.disabled=false;btn.textContent='Create payment request';
   if(r.error)return toast(r.error);
   $('#slotModal').classList.remove('open');
-  if(r.done){await load();toast(slotMode==='buy'?'Slot bought out':'Slot #'+(slotN+1)+' is yours');burst();return}
+  if(r.done){await load();toast('Slot #'+(slotN+1)+' is yours');burst();return}
   if(r.uuid)payFlow(r,
-    slotMode==='buy'?'Buy out slot #'+(slotN+1):slotMode==='extend'?'Extend slot #'+(slotN+1):'Claim slot #'+(slotN+1),
-    slotMode==='buy'?'Payment goes straight to the current holder, wallet to wallet.':'Tax payment goes to the treasury and fills the Golden Hour pot.',
-    'slot',async()=>{await load();toast(slotMode==='buy'?'Slot bought out — it\'s yours':'Slot secured');burst()});
+    slotMode==='buy'?'Buy slot #'+(slotN+1):'Extend slot #'+(slotN+1),
+    slotMode==='buy'?'Payment goes straight to the slot\'s current owner.':'Tax payment — half fills the Golden Hour pot.',
+    'slot',async()=>{await load();toast(slotMode==='buy'?'Slot bought — it\'s yours':'Slot extended');burst()});
 };
 
 /* ---------------- replies ---------------- */
