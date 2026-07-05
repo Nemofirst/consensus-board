@@ -62,14 +62,30 @@ const demoAddr = () => {
 
 /* ---- The Ten (Harberger slots) + Golden Hour + replies + discoverers ---- */
 const SLOT_N = 10, TAX_RATE = 0.03, MIN_PRICE = 5, MAX_PRICE = 10000, MAX_REPLY = 280;
+const START_PRICE = 20, REVERT_FACTOR = 0.8, POT_SHARE = 0.5; // house = original owner of all slots; half of taxes/fees fund the pot
 const dayKey = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
 const slotTax = (price, days) => Math.max(0.5, +(price * TAX_RATE * days).toFixed(2));
 const getSlots = async () => {
   const s = (await store().get("slots", { type: "json" })) || [];
-  return Array.from({ length: SLOT_N }, (_, i) => s[i] || { n: i });
+  return Array.from({ length: SLOT_N }, (_, i) => s[i] || { n: i, house: true, price: START_PRICE });
+};
+/* lapsed player-held slots revert to the house at 80% of their last price */
+const revertSlots = async () => {
+  const slots = await getSlots();
+  let changed = false;
+  for (let i = 0; i < slots.length; i++) {
+    const s = slots[i];
+    if (!s.house && s.holder && (s.paidUntil || 0) < Date.now()) {
+      slots[i] = { n: i, house: true, price: Math.max(START_PRICE, Math.round((s.price || START_PRICE) * REVERT_FACTOR)) };
+      changed = true;
+    }
+    if (!s.house && !s.holder) { slots[i] = { n: i, house: true, price: START_PRICE }; changed = true; }
+  }
+  if (changed) await setSlots(slots);
+  return slots;
 };
 const setSlots = (s) => store().setJSON("slots", s);
-const slotLive = (s) => !!(s && s.holder && (s.paidUntil || 0) > Date.now());
+const slotLive = (s) => !!(s && (s.house || (s.holder && (s.paidUntil || 0) > Date.now())));
 const getPot = async () => (await store().get("pot", { type: "json" })) || { amount: 0, day: dayKey() };
 const setPot = (p) => store().setJSON("pot", p);
 const addPot = async (x) => { const p = await getPot(); p.amount = +(p.amount + x).toFixed(6); await setPot(p); };
@@ -130,7 +146,7 @@ export default async (req) => {
     /* ---------- feed ---------- */
     if (req.method === "GET" && path === "feed") {
       const [posts, followers, following, profiles, replMap, slots, pot] = await Promise.all([
-        getPosts(), getMap("followers"), getMap("following"), getProfiles(), getMap("replies"), getSlots(), settleGH(),
+        getPosts(), getMap("followers"), getMap("following"), getProfiles(), getMap("replies"), revertSlots(), settleGH(),
       ]);
       const mySubs = (me && following[me]) || [];
       const nameOf = (a) => (profiles[a] || {}).name || null;
@@ -148,14 +164,20 @@ export default async (req) => {
           disc: (p.disc || []).map((a) => ({ addr: a, name: nameOf(a) })),
         })),
         slots: slots.map((s) => {
-          const live = slotLive(s);
-          const post = live && posts.find((p) => p.id === s.postId);
+          if (s.house) return {
+            n: s.n, live: true, house: true,
+            holder: process.env.PLATFORM_WALLET || null, name: "One Board",
+            price: s.price, paidUntil: 0,
+            text: s.text || "House slot — buy it and your post sits here, above the entire board.",
+            postId: null, mine: !!(me && me === process.env.PLATFORM_WALLET),
+          };
+          const post = posts.find((p) => p.id === s.postId);
           return {
-            n: s.n, live,
-            holder: live ? s.holder : null, name: live ? nameOf(s.holder) : null,
-            price: live ? s.price : null, paidUntil: live ? s.paidUntil : 0,
-            text: live ? (post ? post.text : s.text || "") : null, postId: live ? s.postId : null,
-            mine: !!(live && me === s.holder),
+            n: s.n, live: true, house: false,
+            holder: s.holder, name: nameOf(s.holder),
+            price: s.price, paidUntil: s.paidUntil,
+            text: post ? post.text : s.text || "", postId: s.postId,
+            mine: !!(me && me === s.holder),
           };
         }),
         gh: { pot: +pot.amount.toFixed(2), day: pot.day, last: pot.last || null },
@@ -221,7 +243,7 @@ export default async (req) => {
         const posts = await getPosts();
         posts.push({ id: crypto.randomUUID(), addr: pending.by, text: pending.text, ts: Date.now(), likes: [], tips: 0, hideTips: !!pending.hideTips });
         await setPosts(posts);
-        await addPot(0.1);
+        await addPot(+(0.1 * POT_SHARE).toFixed(6));
         await store().set(`postdone/${uuid}`, "1");
       }
       return j({ posted: true });
@@ -500,19 +522,20 @@ export default async (req) => {
       return j({ credited: true, txid: p.response.txid });
     }
 
-    /* ---------- The Ten: Harberger slots ----------
-       claim  : vacant slot -> pay tax (3%/day of your self-assessed price) to the treasury
-       buy    : occupied slot -> pay the holder their own price, wallet to wallet; set your new price
-       extend : holder prepays more tax days
-       All taxes fund the Golden Hour pot. */
-    if (req.method === "POST" && (path === "slotclaim" || path === "slotbuy" || path === "slotextend")) {
+    /* ---------- The Ten: Harberger slots (landlord model) ----------
+       Every slot is always owned — by the house (treasury) until a player buys it.
+       buy    : pay the current owner their own price (house sales = platform revenue;
+                player sales settle wallet to wallet). Buyer gets a 24h tax grace.
+       extend : holder prepays tax at 3%/day of their self-assessed price.
+                Half of every tax goes to the Golden Hour pot; half stays with the house.
+       Lapsed slots revert to the house at 80% of their last price. */
+    if (req.method === "POST" && (path === "slotbuy" || path === "slotextend")) {
       if (!me) return j({ error: "sign in first" }, 401);
       const body = await req.json();
       const n = Number(body.n);
       if (!(n >= 0 && n < SLOT_N)) return j({ error: "bad slot" }, 400);
-      const slots = await getSlots();
+      const slots = await revertSlots();
       const s = slots[n];
-      const live = slotLive(s);
       const treasury = process.env.PLATFORM_WALLET;
       const posts = await getPosts();
 
@@ -520,39 +543,30 @@ export default async (req) => {
       const days = Math.min(Math.max(Math.round(Number(body.days) || 0), 1), 30);
 
       let kind = path.replace("slot", ""), pend, dest, xrp, note;
-      if (kind === "claim") {
-        if (live) return j({ error: "slot is taken — buy it out instead" }, 409);
+      if (kind === "buy") {
+        if ((s.house && me === treasury) || (!s.house && s.holder === me)) return j({ error: "already yours" }, 400);
         const post = posts.find((x) => x.id === body.postId);
         if (!post || post.addr !== me) return j({ error: "feature one of your own posts" }, 400);
-        xrp = slotTax(price, days); dest = treasury;
-        pend = { kind, n, by: me, postId: post.id, text: post.text, price, days, tax: xrp };
-        note = `Claim slot #${n + 1} on One Board — ${xrp} XRP tax (${days}d at your ${price} XRP price)`;
-      } else if (kind === "buy") {
-        if (!live) return j({ error: "slot is open — claim it instead" }, 409);
-        if (s.holder === me) return j({ error: "already yours — extend or re-price" }, 400);
-        const post = posts.find((x) => x.id === body.postId);
-        if (!post || post.addr !== me) return j({ error: "feature one of your own posts" }, 400);
-        xrp = s.price; dest = s.holder;
-        pend = { kind, n, by: me, postId: post.id, text: post.text, price, prevHolder: s.holder, pay: xrp };
-        note = `Buy slot #${n + 1} on One Board — ${xrp} XRP straight to the current holder`;
+        xrp = s.price; dest = s.house ? treasury : s.holder;
+        pend = { kind, n, by: me, postId: post.id, text: post.text, price, house: !!s.house, pay: xrp };
+        note = s.house
+          ? `Buy slot #${n + 1} from the house on One Board — ${xrp} XRP`
+          : `Buy out slot #${n + 1} on One Board — ${xrp} XRP straight to the current holder`;
       } else {
-        if (!live || s.holder !== me) return j({ error: "not your slot" }, 403);
+        if (s.house || s.holder !== me) return j({ error: "not your slot" }, 403);
         xrp = slotTax(s.price, days); dest = treasury;
         pend = { kind, n, by: me, days, tax: xrp };
-        note = `Extend slot #${n + 1} on One Board — ${xrp} XRP tax for ${days} more days`;
+        note = `Extend slot #${n + 1} on One Board — ${xrp} XRP tax for ${days} more days (half funds the Golden Hour pot)`;
       }
 
       const applySlot = async () => {
         const cur = await getSlots();
         const c = cur[n];
-        if (pend.kind === "claim") {
-          cur[n] = { n, holder: pend.by, price: pend.price, postId: pend.postId, text: pend.text, since: Date.now(), paidUntil: Date.now() + pend.days * 864e5 };
-          await addPot(pend.tax);
-        } else if (pend.kind === "buy") {
-          cur[n] = { n, holder: pend.by, price: pend.price, postId: pend.postId, text: pend.text, since: Date.now(), paidUntil: Math.max(c.paidUntil || 0, Date.now() + 864e5) };
+        if (pend.kind === "buy") {
+          cur[n] = { n, holder: pend.by, price: pend.price, postId: pend.postId, text: pend.text, since: Date.now(), paidUntil: Math.max((!c.house && c.paidUntil) || 0, Date.now() + 864e5) };
         } else {
           c.paidUntil = Math.max(c.paidUntil || 0, Date.now()) + pend.days * 864e5;
-          await addPot(pend.tax);
+          await addPot(+(pend.tax * POT_SHARE).toFixed(6));
         }
         await setSlots(cur);
       };
@@ -581,15 +595,12 @@ export default async (req) => {
         await store().set(`slotdone/${uuid}`, "1");
         const cur = await getSlots();
         const c = cur[pend.n];
-        if (pend.kind === "claim") {
-          cur[pend.n] = { n: pend.n, holder: pend.by, price: pend.price, postId: pend.postId, text: pend.text, since: Date.now(), paidUntil: Date.now() + pend.days * 864e5 };
-          await setSlots(cur); await addPot(pend.tax);
-        } else if (pend.kind === "buy") {
-          cur[pend.n] = { n: pend.n, holder: pend.by, price: pend.price, postId: pend.postId, text: pend.text, since: Date.now(), paidUntil: Math.max((c && c.paidUntil) || 0, Date.now() + 864e5) };
+        if (pend.kind === "buy") {
+          cur[pend.n] = { n: pend.n, holder: pend.by, price: pend.price, postId: pend.postId, text: pend.text, since: Date.now(), paidUntil: Math.max((c && !c.house && c.paidUntil) || 0, Date.now() + 864e5) };
           await setSlots(cur);
-        } else if (c) {
+        } else if (c && !c.house) {
           c.paidUntil = Math.max(c.paidUntil || 0, Date.now()) + pend.days * 864e5;
-          await setSlots(cur); await addPot(pend.tax);
+          await setSlots(cur); await addPot(+(pend.tax * POT_SHARE).toFixed(6));
         }
       }
       return j({ done: true });
